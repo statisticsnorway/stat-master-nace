@@ -3,7 +3,7 @@
 Automating NACE classification.
 
 Opprettet av:
-Minauio <minashe@uio.no>
+Minauio <minash19@yahoo.com>
 
 ---
 
