@@ -1,0 +1,17 @@
+{
+  "template": "https://github.com/statisticsnorway/ssb-project-template-stat",
+  "commit": "b41ddc5575550db3fe01c16181e6b05701bd41d4",
+  "checkout": "1.1.7",
+  "context": {
+    "cookiecutter": {
+      "full_name": "Minauio",
+      "email": "minashe@uio.no",
+      "project_name": "stat-master--nace",
+      "description": "Automating NACE classification.",
+      "license_year": "2025",
+      "_template": "https://github.com/statisticsnorway/ssb-project-template-stat",
+      "_commit": "b41ddc5575550db3fe01c16181e6b05701bd41d4"
+    }
+  },
+  "directory": null
+}
