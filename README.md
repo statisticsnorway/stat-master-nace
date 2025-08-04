@@ -1,4 +1,4 @@
-# stat-master--nace
+# stat-master-nace
 
 Automating NACE classification.
 
