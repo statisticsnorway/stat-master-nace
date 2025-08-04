@@ -2,7 +2,7 @@
 
 Automating NACE classification.
 
-Opprettet av:
+Created by:
 Minauio <minash19@yahoo.com>
 
 ------
