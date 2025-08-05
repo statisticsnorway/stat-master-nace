@@ -11,8 +11,8 @@ df_overgang = pd.read_csv("/ssb/stamme01/data811/NACE/data/SN2025-SN2007_23.06.2
 
 # Hent ut data for gamle nace-koder, org-nr og fritekst.
 # Antar gamle nace-koder er SN07
-
 df_sn07 = df[['orgnr', 'tekst', 'SN2007']]
+
 
 # Herfra kan du gruppere på over og underkategorier og få en oversikt over hvor mange virksomheter som befinner seg under hver kategori. Kan du herfra kjøre en enkel klassifiseringsmodell?
 
@@ -60,6 +60,23 @@ unmatched_07_25 = (df_overgang['SN2007'] != df_overgang['SN2025'])
 
 count_07_25_unmatched = unmatched_07_25.sum()
 
+# Antall nye koder i 2025:
+new = df_overgang['SN2007'].isna()
+
+# Antall endrede koder i 2025:
+edit =df_overgang[
+    df_overgang['SN2007'].notna() &
+    df_overgang['SN2025'].notna() &
+    (df_overgang['SN2007'] != df_overgang['SN2025'])
+]
+
+
+# Antall koder som ikke finnes lenger i 2025
+deleted = df_overgang['SN2025'].isna()
+
+# Antall koder som har samme kode nummer, men annerledes beskrivelse
+new_desc = df_overgang[(df_overgang['SN2007'] == df_overgang['SN2025']) & (df_overgang['SN2007 Tittel'] != df_overgang['SN2025 Tittel'])]
+
 
 if __name__=="__main__":
     print(df_sn07)
@@ -67,4 +84,9 @@ if __name__=="__main__":
     print(counted-groups)
     print('Number of NACE codes that have changed in the 2025 sett')
     print(count_07_25_unmatched) #783 av 1241
-    
+    print('new',new.sum()) #new 3
+    print('edit',edit.shape[0]) #edit 780
+    print('del',deleted.sum()) #del 0
+    print('new_desc',new_desc.shape[0]) #new_desc 455
+
+
