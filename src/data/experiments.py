@@ -1,5 +1,7 @@
 # imported libraries
 import pandas as pd
+import numpy as np
+import fasttext
 
 
 # Treningsdata
@@ -55,9 +57,7 @@ df_overgang['SN2025'].astype(float)
 
 
 # 2) Hvor mange av NACE-kodene som har endret seg i 2025 settet. 
-
 unmatched_07_25 = (df_overgang['SN2007'] != df_overgang['SN2025'])
-
 count_07_25_unmatched = unmatched_07_25.sum()
 
 # Antall nye koder i 2025:
@@ -67,8 +67,7 @@ new = df_overgang['SN2007'].isna()
 edit =df_overgang[
     df_overgang['SN2007'].notna() &
     df_overgang['SN2025'].notna() &
-    (df_overgang['SN2007'] != df_overgang['SN2025'])
-]
+    (df_overgang['SN2007'] != df_overgang['SN2025'])]
 
 
 # Antall koder som ikke finnes lenger i 2025

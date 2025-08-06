@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "stat-master--nace"
+name = "stat-master-nace"
 version = "0.1.0"
 description = "Automating NACE classification."
 authors = ["Minauio <minash19@yahoo.com>"]
@@ -12,6 +12,7 @@ python = ">=3.10,<3.13"
 dapla-toolbelt = ">=1.3.2"
 ipykernel = ">=6.15.3"
 matplotlib = "^3.10.3"
+fasttext = "^0.9.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.1.3"
