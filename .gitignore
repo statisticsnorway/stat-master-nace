@@ -209,6 +209,8 @@ rsconnect/
 
 # ignore poetry in .config
 .poetry/**
+src/data/.poetry/
+
 
 # Blaise specific ignores
 *.bdix
