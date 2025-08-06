@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "stat-master--nace"
+name = "stat-master-nace"
 version = "0.1.0"
 description = "Automating NACE classification."
 authors = ["Minauio <minash19@yahoo.com>"]
