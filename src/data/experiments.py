@@ -41,7 +41,25 @@ groups_25_07.count() # Shape is (45, 1)
 
 # Kjøre dataene inn på fasttext modellen (og andre relevante modeller) og se hva slags resultater vi får 
 
+train = df_sn07[:int(df_sn07.shape[0]*2/3)].copy()
+test = df_sn07[int(df_sn07.shape[0]/3):].copy()
+pred = test['tekst'].tolist()
 
+test.index = pd.RangeIndex(start=0, stop=len(test))
+#test.iloc[1]
+
+# Format for FastText
+train['fasttext_format'] = '__label__' + train['SN2007'] + ' ' + train['tekst']
+
+# Save to a text file
+output_file = 'fasttext_input.txt'
+train['fasttext_format'].to_csv(output_file,  index=False, header=False)
+
+
+# Skipgram model :
+model = fasttext.train_supervised(input='fasttext_input.txt')
+labels, probabilities = model.predict([pred[1]]) #if wanting to predict more than one label set k= number of labels.
+#print(labels)
 
 #----------- df_overgang datasettet --------------
 
@@ -74,7 +92,8 @@ edit =df_overgang[
 deleted = df_overgang['SN2025'].isna()
 
 # Antall koder som har samme kode nummer, men annerledes beskrivelse
-new_desc = df_overgang[(df_overgang['SN2007'] == df_overgang['SN2025']) & (df_overgang['SN2007 Tittel'] != df_overgang['SN2025 Tittel'])]
+new_desc = df_overgang[(df_overgang['SN2007'] == df_overgang['SN2025']) & 
+                       (df_overgang['SN2007 Tittel'] != df_overgang['SN2025 Tittel'])]
 
 
 if __name__=="__main__":
@@ -87,5 +106,9 @@ if __name__=="__main__":
     print('edit',edit.shape[0]) #edit 780
     print('del',deleted.sum()) #del 0
     print('new_desc',new_desc.shape[0]) #new_desc 455
+    print('prediction input text and label')
+    test.iloc[1]
+    print('predicted label')
+    print(labels)
 
 
