@@ -1,8 +1,12 @@
 # imported libraries
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
+import matplotlib.cm as cm
+from matplotlib.ticker import MaxNLocator
 import fasttext
-
 
 # Treningsdata
 df = pd.read_parquet("/ssb/stamme01/data811/NACE/data/one_to_many.parquet")
@@ -96,6 +100,43 @@ new_desc = df_overgang[(df_overgang['SN2007'] == df_overgang['SN2025']) &
                        (df_overgang['SN2007 Tittel'] != df_overgang['SN2025 Tittel'])]
 
 
+#Det høres også greit ut å sjekke hvilke koder som har blitt splittet og samlet i 25-versjonen. Men begynn med å se på 2007-data. 
+
+#Hvilke hovedgrupper er størst? 
+
+#Hvilke grupper er det som blir mest oppsplittet? 
+
+#Finn måter å visualisere hierarkisk informasjon på en oversiktlig måte. Hvilke områder er det som ser vanskelige ut når det kommer til å gi prediksjoner? 
+
+#Er det noen fellestrekk i friteksten i enkelte grupper som kan beskrives? 
+
+
+# Data
+tr_div_gr = train.groupby("Division")["Group"].nunique().sort_values(ascending=False)
+div_dist = train['Division'].value_counts().reindex(tr_div_gr.index)
+
+def nace_structure_plot():
+
+    fig, ax1 = plt.subplots(figsize=(12,6))
+
+    # Bar plot for counts
+    ax1.bar(tr_div_gr.index, div_dist.values)
+    ax1.set_xlabel('Division')
+    ax1.set_ylabel('Number of Values (count)', color='black')
+    ax1.tick_params(axis='y', labelcolor='black')
+    plt.xticks(rotation=90)
+    plt.title("Count of Values per Division (colored by number of groups)")
+
+    # secondary y-axis to indicate number of groups
+    ax2 = ax1.twinx()
+    ax2.plot(tr_div_gr.index, tr_div_gr.values, 'o-', color='red', label='Number of Groups')
+    ax2.set_ylabel('Number of Groups', color='red')
+    ax2.tick_params(axis='y', labelcolor='red')
+
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__=="__main__":
     print(df_sn07)
     print('number of companies under each NACE category')
@@ -110,5 +151,5 @@ if __name__=="__main__":
     test.iloc[1]
     print('predicted label')
     print(labels)
-
+    nace_structure_plot()
 
