@@ -32,3 +32,10 @@ val_input_txt, val_labels, test_input_txt, test_labels = fasttext_input(
     input_cols_val=["tekst","navn"], output_cols_val=["SN2007"], 
     input_cols_test=["tekst","navn"], output_cols_test=["SN2007"])
 
+
+map_sn07 = mapping(df_overgang, "SN2007", "SN2007 Tittel")
+save_mapping(map_sn07, "sn2007_mapping.json")
+
+
+
+df_res = output_prep(pred_labels=pred_labels, true_labels=test_labels, input_text=test_input)

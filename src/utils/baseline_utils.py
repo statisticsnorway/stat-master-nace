@@ -13,7 +13,7 @@ def fasttext_dataprep(df: pd.DataFrame, columns:list[str])-> pd.DataFrame:
     df["fasttext_format"] = ("__label__" + df[columns].astype(str).agg(' '.join, axis=1))
     return df
 
-def splitting_dataset(df:pd.DataFrame, statify_column:str)->txt:
+def splitting_dataset(df:pd.DataFrame, statify_column:str)->pd.DataFrame:
     # train vs test
     train, temp = train_test_split(df, test_size=0.4, random_state=42, stratify=df[statify_column])
     #### stratified cross validation instead of validation set
@@ -27,15 +27,15 @@ def splitting_dataset(df:pd.DataFrame, statify_column:str)->txt:
     test["fasttext_format"].to_csv(f"{SAVE_PATH}/test_fasttext.txt", index=False, header=False)
     return train, val, test
     
-def pred_input_output(df:pd.DataFrame, input_cols:list[str], output_cols:list[str]):
-    labels = (df[output_cols].astype(str).agg(' '.join, axis=1)).tolist()
+def pred_input_output(df:pd.DataFrame, input_cols:list[str], output_cols:list[str])->list[str]:
+    labels = df[output_cols].astype(str).values.tolist()
     input_txt = (df[input_cols].astype(str).agg(' '.join, axis=1)).tolist()
     return input_txt, labels
 
 
 def fasttext_input(df:pd.DataFrame, columns:list[str], statify_column:str, 
                    input_cols_val:list[str], output_cols_val:list[str], 
-                   input_cols_test:list[str], output_cols_test:list[str]):["SN2007","tekst","navn"]
+                   input_cols_test:list[str], output_cols_test:list[str]):
 
     df_prep = fasttext_dataprep(df, columns)
     train, val, test=splitting_dataset(df_prep, statify_column)
@@ -47,31 +47,28 @@ def fasttext_input(df:pd.DataFrame, columns:list[str], statify_column:str,
 
 ### Fasttext result preparation
 
-# arrays of the true and predicted values
-pred_labels=np.array(pred_labels)
-val_labels=np.array(val_labels)
+def output_prep(pred_labels:list[str], true_labels:list[str], input_text:list[str])->pd.DataFrame:
+    # arrays of the true and predicted values
+    pred_labels, true_labels = np.array(pred_labels), np.array(true_labels)
+    
+    # filtering to only wrong classified values
+    val_text_wp = input_text[pred_labels != true_labels]
+    wrong_pred = pred_labels[pred_labels != true_labels]    
+    true_code = true_labels[pred_labels != true_labels]
 
-# filtering to only wrong classified values
-val_text_wp = val_text[pred_labels != val_labels]
-wrong_pred = pred_labels[pred_labels != val_labels]    
-true_code = val_labels[pred_labels != val_labels]
+    # building mapping dictionaries
+    #map_sn07 = dict(zip(df['SN2007'], df['SN2007 Tittel']))
+    map_sn07 = load_mapping("sn2007_mapping.json")
 
-# building mapping dictionaries
-map_sn07 = dict(zip(df_overgang['SN2007'], df_overgang['SN2007 Tittel']))
-
-# new DataFrame
-df_wrong_preds = pd.DataFrame({
-    'input text': val_text_wp,
-    'wrong predictions':wrong_pred, 
-    'prediction name':[map_sn07.get(x) for x in wrong_pred], 
-    'true codes':true_code, 
-    'code name':[map_sn07.get(x) for x in true_code]})
-df_wrong_preds=df_wrong_preds.drop_duplicates()
-df_wrong_preds
-
-
-
-
+    # new DataFrame
+    df_wrong_preds = pd.DataFrame({
+        'input text': val_text_wp,
+        'wrong predictions':wrong_pred, 
+        'prediction name':[map_sn07.get(x) for x in wrong_pred], 
+        'true codes':true_code, 
+        'code name':[map_sn07.get(x) for x in true_code]})
+    df_wrong_preds=df_wrong_preds.drop_duplicates()
+    return df_wrong_preds
 
 
 
@@ -79,4 +76,4 @@ if __name__=="__main__":
     val_input_txt, val_labels, test_input_txt, test_labels = fasttext_input(
         df=df_sn07, columns=["SN2007","tekst","navn"], statify_column="SN2007", 
         input_cols_val=["tekst","navn"], output_cols_val=["SN2007"], 
-        input_cols_test=["tekst","navn"], output_cols_test=["SN2007"])
+        input_cols_test=["tekst","navn"], output_cols_test=["SN2007", 'SN2007 Tittel'])
