@@ -6,7 +6,7 @@
     "cookiecutter": {
       "full_name": "Minauio",
       "email": "minash19@yahoo.com",
-      "project_name": "stat-master--nace",
+      "project_name": "stat-master-nace",
       "description": "Automating NACE classification.",
       "license_year": "2025",
       "_template": "https://github.com/statisticsnorway/ssb-project-template-stat",
