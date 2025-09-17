@@ -1,0 +1,82 @@
+# imported libraries
+import fasttext
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+
+
+
+### Fasttext data preparation
+# Format for FastText
+
+def fasttext_dataprep(df: pd.DataFrame, columns:list[str])-> pd.DataFrame:
+    df["fasttext_format"] = ("__label__" + df[columns].astype(str).agg(' '.join, axis=1))
+    return df
+
+def splitting_dataset(df:pd.DataFrame, statify_column:str)->txt:
+    # train vs test
+    train, temp = train_test_split(df, test_size=0.4, random_state=42, stratify=df[statify_column])
+    #### stratified cross validation instead of validation set
+
+    # test vs validation
+    test, val = train_test_split(temp, test_size=0.5, random_state=42, stratify=temp[statify_column])
+    
+    # Save to a text file
+    train["fasttext_format"].to_csv(f"{SAVE_PATH}/train_fasttext.txt", index=False, header=False)
+    val["fasttext_format"].to_csv(f"{SAVE_PATH}/val_fasttext.txt", index=False, header=False)
+    test["fasttext_format"].to_csv(f"{SAVE_PATH}/test_fasttext.txt", index=False, header=False)
+    return train, val, test
+    
+def pred_input_output(df:pd.DataFrame, input_cols:list[str], output_cols:list[str]):
+    labels = (df[output_cols].astype(str).agg(' '.join, axis=1)).tolist()
+    input_txt = (df[input_cols].astype(str).agg(' '.join, axis=1)).tolist()
+    return input_txt, labels
+
+
+def fasttext_input(df:pd.DataFrame, columns:list[str], statify_column:str, 
+                   input_cols_val:list[str], output_cols_val:list[str], 
+                   input_cols_test:list[str], output_cols_test:list[str]):["SN2007","tekst","navn"]
+
+    df_prep = fasttext_dataprep(df, columns)
+    train, val, test=splitting_dataset(df_prep, statify_column)
+    val_input_txt, val_labels=pred_input_output(val, val_input_cols, val_output_cols)
+    test_input_txt, test_labels=pred_input_output(test, test_input_cols, test_output_cols)
+    return val_input_txt, val_labels, test_input_txt, test_labels
+    
+
+
+### Fasttext result preparation
+
+# arrays of the true and predicted values
+pred_labels=np.array(pred_labels)
+val_labels=np.array(val_labels)
+
+# filtering to only wrong classified values
+val_text_wp = val_text[pred_labels != val_labels]
+wrong_pred = pred_labels[pred_labels != val_labels]    
+true_code = val_labels[pred_labels != val_labels]
+
+# building mapping dictionaries
+map_sn07 = dict(zip(df_overgang['SN2007'], df_overgang['SN2007 Tittel']))
+
+# new DataFrame
+df_wrong_preds = pd.DataFrame({
+    'input text': val_text_wp,
+    'wrong predictions':wrong_pred, 
+    'prediction name':[map_sn07.get(x) for x in wrong_pred], 
+    'true codes':true_code, 
+    'code name':[map_sn07.get(x) for x in true_code]})
+df_wrong_preds=df_wrong_preds.drop_duplicates()
+df_wrong_preds
+
+
+
+
+
+
+
+if __name__=="__main__":
+    val_input_txt, val_labels, test_input_txt, test_labels = fasttext_input(
+        df=df_sn07, columns=["SN2007","tekst","navn"], statify_column="SN2007", 
+        input_cols_val=["tekst","navn"], output_cols_val=["SN2007"], 
+        input_cols_test=["tekst","navn"], output_cols_test=["SN2007"])
