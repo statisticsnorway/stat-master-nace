@@ -47,8 +47,12 @@ def fasttext_input(df:pd.DataFrame, columns:list[str], statify_column:str,
 
 ### Fasttext result preparation
 
-def output_prep(pred_labels:list[str], true_labels:list[str], input_text:list[str])->pd.DataFrame:
+def wrong_preds_df(pred_labels:list[str], true_labels:list[str], input_text:list[str], mapping_file:str)->pd.DataFrame:
+    """All the wrong predictions and the true labels are placed in a dataframe"""
     # arrays of the true and predicted values
+    # clean prediction labels
+    pred_labels = [label[0].replace('__label__', '') for label in labels]
+    true_labels = [label[0].replace('__label__', '') for label in labels]
     pred_labels, true_labels = np.array(pred_labels), np.array(true_labels)
     
     # filtering to only wrong classified values
@@ -58,7 +62,7 @@ def output_prep(pred_labels:list[str], true_labels:list[str], input_text:list[st
 
     # building mapping dictionaries
     #map_sn07 = dict(zip(df['SN2007'], df['SN2007 Tittel']))
-    map_sn07 = load_mapping("sn2007_mapping.json")
+    map_sn07 = load_mapping(mapping_file)
 
     # new DataFrame
     df_wrong_preds = pd.DataFrame({
