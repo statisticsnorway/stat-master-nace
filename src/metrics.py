@@ -1,3 +1,4 @@
+import numpy as np
 import sklearn.metrics as m
 from sklearn.preprocessing import OneHotEncoder 
 
@@ -9,18 +10,19 @@ def brier_multi(targets, probs):
 
 
 
-def metrics(target, preds):
+def metrics(target, pred):
+    target, pred = np.array(target), np.array(pred)
     results = {}
 
     for avg in ['macro', 'micro', 'weighted']:
         results[avg] = {
             "f1": m.f1_score(target, pred, zero_division=np.nan, average=avg),
             "recall": m.recall_score(target, pred, zero_division=np.nan, average=avg),
-            "precision": m.precsion_score(target, pred, zero_division=np.nan, average=avg),
+            "precision": m.precision_score(target, pred, zero_division=np.nan, average=avg),
         }
-    results['brier score'] = m.brier_multi(target, pred)
+    results['brier score'] = brier_multi(target, pred)
 
     # Convert to DataFrame
     df_results = pd.DataFrame(results).T  # .T transposes so metrics are rows
-    print(df_results)
+    return df_results
 

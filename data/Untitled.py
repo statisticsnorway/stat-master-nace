@@ -27,11 +27,11 @@ import sklearn.metrics as m
 
 # Treningsdata
 df = pd.read_parquet("/ssb/stamme01/data811/NACE/data/one_to_many.parquet")
+df_new = pd.read_parquet("/ssb/stamme01/data811/NACE/data/foretak_med_formaal_sn2025.parquet")
 
 # Overgangssett
 df_overgang = pd.read_csv(
-    "/ssb/stamme01/data811/NACE/data/SN2025-SN2007_23.06.2025.csv", sep=";"
-)
+    "/ssb/stamme01/data811/NACE/data/SN2025-SN2007_23.06.2025.csv", sep=";")
 
 
 # NACE 2007 Hierarchi
@@ -47,7 +47,7 @@ df_sn07 = df[["orgnr", "tekst", "navn", "SN2007"]]
 
 # Beskriv datasettet etter f.eks:
 #   - hierarkisk oppbygning
-groups = df_sn07.groupby("SN2007")
+groups = df_sn07.groupby("SN2007")["navn"]
 
 
 #   - antall per kategori på flere nivå.
@@ -66,8 +66,22 @@ groups_25_07.count()  # Shape is (45, 1)
 print('done')
 
 # %%
-df = pd.read_parquet("/ssb/stamme01/data811/NACE/data/one_to_many.parquet")
+grouped = df_new[df_new.groupby("sn2025_1")["navn"].transform("count") >10]
+if set(['tekst', 'navn', 'sf_type', 'sn2025_1', 'sn2025_1_gdato']).issubset(set(grouped.columns)):
+    print('yes')
+# grouped.groupby("sn2025_1")["navn"].count()
+
+# %%
+df_new.groupby("sn2025_1")["navn"].transform("count")
+
+# %%
+df_new.head()
+
+# %%
 df.head()
+
+# %%
+df_overgang.head() 
 
 # %%
 df_hier.head()
@@ -97,8 +111,7 @@ new = df_overgang["SN2007"].isna()
 edit = df_overgang[
     df_overgang["SN2007"].notna()
     & df_overgang["SN2025"].notna()
-    & (df_overgang["SN2007"] != df_overgang["SN2025"])
-]
+    & (df_overgang["SN2007"] != df_overgang["SN2025"])]
 
 
 # Antall koder som ikke finnes lenger i 2025
@@ -125,7 +138,7 @@ print("edit", edit.shape[0])  # edit 780
 print("del", deleted.sum())  # del 0
 print("new_desc", new_desc.shape[0])  # new_desc 455
 
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # # Fasttext
 
 # %%
@@ -163,7 +176,7 @@ test_text = (test["tekst"] + " " + test["navn"]).tolist()
 test.index = pd.RangeIndex(start=0, stop=len(test))
 test.iloc[1]
 
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ## Fasttext hyperparameter tuning
 # FastText's autotune feature allows you to find automatically the best hyperparameters for your dataset. Hyperparameters are learning rate and epochs.
 # - er fasttext bedre på å predikere tall eller text? 
@@ -257,7 +270,7 @@ df_wrong_preds
 # %%
 model = 
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # # Visualising the distribution
 
 # %%
@@ -454,7 +467,7 @@ train.columns
 df_hier_sorted = df_hier.sort_values(by="level", ascending=True, inplace=False)
 df_hier_sorted
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # # Visualizing the hierarchy of the NACE07 codes
 
 # %%

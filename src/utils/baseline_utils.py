@@ -1,8 +1,9 @@
 # imported libraries
-import fasttext
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from src.preprocess import load_mapping
+from src.config import SAVE_PATH
 
 
 
@@ -27,7 +28,7 @@ def splitting_dataset(df:pd.DataFrame, statify_column:str)->pd.DataFrame:
     test["fasttext_format"].to_csv(f"{SAVE_PATH}/test_fasttext.txt", index=False, header=False)
     return train, val, test
     
-def pred_input_output(df:pd.DataFrame, input_cols:list[str], output_cols:list[str])->list[str]:
+def pred_prep(df:pd.DataFrame, input_cols:list[str], output_cols:list[str])->list[str]:
     labels = df[output_cols].astype(str).values.tolist()
     input_txt = (df[input_cols].astype(str).agg(' '.join, axis=1)).tolist()
     return input_txt, labels
@@ -39,8 +40,8 @@ def fasttext_input(df:pd.DataFrame, columns:list[str], statify_column:str,
 
     df_prep = fasttext_dataprep(df, columns)
     train, val, test=splitting_dataset(df_prep, statify_column)
-    val_input_txt, val_labels=pred_input_output(val, val_input_cols, val_output_cols)
-    test_input_txt, test_labels=pred_input_output(test, test_input_cols, test_output_cols)
+    val_input_txt, val_labels=pred_prep(val, input_cols_val, output_cols_val)
+    test_input_txt, test_labels=pred_prep(test, input_cols_test, output_cols_test)
     return val_input_txt, val_labels, test_input_txt, test_labels
     
 
@@ -51,9 +52,10 @@ def wrong_preds_df(pred_labels:list[str], true_labels:list[str], input_text:list
     """All the wrong predictions and the true labels are placed in a dataframe"""
     # arrays of the true and predicted values
     # clean prediction labels
-    pred_labels = [label[0].replace('__label__', '') for label in labels]
-    true_labels = [label[0].replace('__label__', '') for label in labels]
+    pred_labels = [label[0].replace('__label__', '') for label in pred_labels]
+    true_labels = [label[0].replace('__label__', '') for label in true_labels]
     pred_labels, true_labels = np.array(pred_labels), np.array(true_labels)
+    input_text, pred_labels, true_labels = np.array(input_text), np.array(pred_labels), np.array(true_labels)
     
     # filtering to only wrong classified values
     val_text_wp = input_text[pred_labels != true_labels]

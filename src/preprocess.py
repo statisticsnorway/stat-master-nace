@@ -1,30 +1,29 @@
 # imported libraries
-import fasttext
-import matplotlib.cm as cm
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.patches import Patch
-from sklearn.model_selection import train_test_split
-import sklearn.metrics as m
 import json
 import os
 
 
 def column_subset(df):
     """Choosing a subset of columns """
-    return df[["orgnr", "tekst", "navn", "SN2007"]]
-
+    #return df[["orgnr", "tekst", "navn", "SN2007"]]
+    return df[["tekst", "navn", "sn2025_1"]]
 
 def cleaning_df(df:pd.DataFrame) -> pd.DataFrame:
     """Cleaning dataframe by handling missing values """
-    df = df.replace(
-        to_replace="* Har ingen korrespondanse i SN2007", 
-        value=np.nan)
+    if (df == "* Har ingen korrespondanse i SN2007").any().any():
+        df = df.replace(
+            to_replace="* Har ingen korrespondanse i SN2007", 
+            value=np.nan)
+    if set(["tekst", "navn", "sn2025_1"]).issubset(set(df.columns)):
+        df = df[df.groupby("sn2025_1")["navn"].transform("count") >10]
     return df
 
 
 def mapping(df, key_col, value_col, filename):
+    
+    
     return dict(zip(df[key_col], df[value_col]))
     
 
