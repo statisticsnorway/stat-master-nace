@@ -2,7 +2,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from src.preprocess import load_mapping
+#from src.preprocess import load_mapping
 from src.config import SAVE_PATH
 
 
@@ -15,7 +15,7 @@ def fasttext_dataprep(df: pd.DataFrame, columns:list[str])-> pd.DataFrame:
     df["fasttext_format"] = ("__label__" + df[columns].astype(str).agg(' '.join, axis=1))
     return df 
 
-def splitting_dataset(df:pd.DataFrame, statify_column:str)->pd.DataFrame:
+def splitting_dataset(df:pd.DataFrame, statify_column:str, train_file:str, val_file:str, test_file:str)->pd.DataFrame:
     # train vs test
     train, temp = train_test_split(df, test_size=0.4, random_state=42, stratify=df[statify_column])
     #### stratified cross validation instead of validation set
@@ -24,9 +24,9 @@ def splitting_dataset(df:pd.DataFrame, statify_column:str)->pd.DataFrame:
     test, val = train_test_split(temp, test_size=0.5, random_state=42, stratify=temp[statify_column])
     
     # Save to a text file
-    train["fasttext_format"].to_csv(f"{SAVE_PATH}/train_fasttext.txt", index=False, header=False)
-    val["fasttext_format"].to_csv(f"{SAVE_PATH}/val_fasttext.txt", index=False, header=False)
-    test["fasttext_format"].to_csv(f"{SAVE_PATH}/test_fasttext.txt", index=False, header=False)
+    train["fasttext_format"].to_csv(f"{SAVE_PATH}/{train_file}.txt", index=False, header=False)
+    val["fasttext_format"].to_csv(f"{SAVE_PATH}/{val_file}.txt", index=False, header=False)
+    test["fasttext_format"].to_csv(f"{SAVE_PATH}/{test_file}.txt", index=False, header=False)
     return train, val, test
     
 def pred_prep(df:pd.DataFrame, input_cols:list[str], output_cols:list[str])->list[str]:
@@ -37,10 +37,12 @@ def pred_prep(df:pd.DataFrame, input_cols:list[str], output_cols:list[str])->lis
 
 def fasttext_input(df:pd.DataFrame, columns:list[str], statify_column:str, 
                    input_cols_val:list[str], output_cols_val:list[str], 
-                   input_cols_test:list[str], output_cols_test:list[str]):
+                   input_cols_test:list[str], output_cols_test:list[str], 
+                  train_file='train_fasttext', val_file='val_fasttext', test_file='test_fasttext'):
 
     df_prep = fasttext_dataprep(df, columns)
-    train, val, test=splitting_dataset(df_prep, statify_column)
+    train, val, test=splitting_dataset(df_prep, statify_column,
+                                       train_file=train_file, val_file=val_file, test_file=test_file)
     val_input_txt, val_labels=pred_prep(val, input_cols_val, output_cols_val)
     test_input_txt, test_labels=pred_prep(test, input_cols_test, output_cols_test)
     return val_input_txt, val_labels, test_input_txt, test_labels
@@ -55,7 +57,7 @@ def output_prep(pred_labels:list[str], true_labels:list[str]):
     pred_labels, true_labels = np.array(pred_labels), np.array(true_labels)
     return pred_labels, true_labels
 
-def wrong_preds_df(pred_labels:list[str], true_labels:list[str], input_text:list[str], mapping_file:str)->pd.DataFrame:
+def wrong_preds_df(pred_labels:list[str], true_labels:list[str], input_text:list[str], map_file:str)->pd.DataFrame:
     """All the wrong predictions and the true labels are placed in a dataframe"""
     input_text = np.array(input_text)
     
@@ -66,7 +68,7 @@ def wrong_preds_df(pred_labels:list[str], true_labels:list[str], input_text:list
 
     # building mapping dictionaries
     #map_sn07 = dict(zip(df['SN2007'], df['SN2007 Tittel']))
-    map_file = load_mapping(mapping_file)
+    #map_file = load_mapping(mapping_file)
 
     # new DataFrame
     df_wrong_preds = pd.DataFrame({

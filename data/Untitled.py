@@ -35,7 +35,7 @@ df_overgang = pd.read_csv(
 
 
 # NACE 2007 Hierarchi
-df_hier = pd.read_csv("/ssb/stamme01/data811/NACE/data//nace07_hierarki.csv", sep=";", encoding="latin-1")
+df_hier = pd.read_csv("/ssb/stamme01/data811/NACE/data/nace25_hierarki.csv", sep=";", encoding="latin-1")
 
 
 # Hent ut data for gamle nace-koder, org-nr og fritekst.
@@ -75,10 +75,14 @@ if set(['tekst', 'navn', 'sf_type', 'sn2025_1', 'sn2025_1_gdato']).issubset(set(
 df_new.groupby("sn2025_1")["navn"].transform("count")
 
 # %%
-df_new
+df_new['sn2025_1'].dtype
 
 # %%
-df_hier
+l=df_hier['level'].dtype
+l
+
+# %%
+df_hier[df_hier['level']==1]
 
 # %%
 df.head()

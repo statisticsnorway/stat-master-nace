@@ -1,7 +1,6 @@
 import pandas as pd
 from src.config import DATA_PATH, OLD_DATA, TRANSITION_DATA_PATH, HIERARCHY_DATA, RANDOM_STATE, SAVE_PATH
-from src.preprocess import column_subset, cleaning_df, mapping
-from src.exploration import explore_data_transition, count_per_category
+from src.preprocess import column_subset, cleaning_df
 from src.utils.baseline_utils import fasttext_input, wrong_preds_df, output_prep
 from src.models.baseline import run_fasttext_model
 from src.metrics import metrics
@@ -24,9 +23,6 @@ df = pd.read_parquet(DATA_PATH)
 df_transition = pd.read_csv(TRANSITION_DATA_PATH, dtype={'SN2025':str}, sep=";")
 
 
-# NACE 2007 Hierarchi
-df_hier = pd.read_csv(HIERARCHY_DATA,sep=";",encoding="latin-1")
-
 # Getting data for old sn-codes, org-nr and text and filtering to only include groups with 10> datapoints
 df = cleaning_df(df)
 df_sn25 = column_subset(df)
@@ -39,7 +35,8 @@ val_input, val_labels, test_input, test_labels = fasttext_input(
     input_cols_test=["tekst","navn"], output_cols_test=["sn2025_1"])
 
 
-map_sn25 = mapping(df_transition, "SN2025", "SN2025 Tittel", "sn2025_mapping.json")
+map_sn25 = dict(zip(df_transition["SN2025"], df_transition["SN2025 Tittel"]))
+
 
 
 # saving finetuned fasttext model and predicting using that
@@ -53,19 +50,12 @@ df_results = metrics(test_labels, pred_labels)
 print(df_results)
 
 # Analysing output of fasttext
-df_res = wrong_preds_df(pred_labels=pred_labels, true_labels=test_labels, input_text=test_input, mapping_file="sn2025_mapping.json")
+df_res = wrong_preds_df(pred_labels=pred_labels, true_labels=test_labels, input_text=test_input, map_file=map_sn25)
 
 print(df_res)
 df_res.to_csv("wrong_preds_df.csv", index=False)
 
-# splitting the df_hier into 
 
-
-
-
-
-# Hierarkies of SN code
-sn_hiers = ["Division", "Group", "Class", "Subclass"]
 
 # Visualising the distribution of each hierarchical level and number of distinct divisions
 """
