@@ -18,3 +18,9 @@ def run_fasttext_model():
 
 # hierarchical model
 
+def hier_fasttext():
+    model_div = run_fasttext_model(train_div, val_div)
+    
+    
+def fasttext_each_hier():
+    ...

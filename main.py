@@ -1,8 +1,8 @@
 import pandas as pd
 from src.config import DATA_PATH, OLD_DATA, TRANSITION_DATA_PATH, HIERARCHY_DATA, RANDOM_STATE, SAVE_PATH
-from src.preprocess import column_subset, cleaning_df, mapping, save_mapping, load_mapping
+from src.preprocess import column_subset, cleaning_df, mapping
 from src.exploration import explore_data_transition, count_per_category
-from src.utils.baseline_utils import fasttext_input, wrong_preds_df
+from src.utils.baseline_utils import fasttext_input, wrong_preds_df, output_prep
 from src.models.baseline import run_fasttext_model
 from src.metrics import metrics
 
@@ -31,14 +31,6 @@ df_hier = pd.read_csv(HIERARCHY_DATA,sep=";",encoding="latin-1")
 df = cleaning_df(df)
 df_sn25 = column_subset(df)
 
-# Analysing the transition from sn07 to sn25
-df_trans_clean = cleaning_df(df_transition)
-explore_data_transition(df_trans_clean)
-
-# Number of companies under each SN subclass
-groups_sn25 = count_per_category(df[["navn", "sn2025_1"]],"sn2025_1") 
-print(f"number of companies under each NACE category {groups_sn25}")
-
     
 # Running fasttext
 val_input, val_labels, test_input, test_labels = fasttext_input(
@@ -48,16 +40,27 @@ val_input, val_labels, test_input, test_labels = fasttext_input(
 
 
 map_sn25 = mapping(df_transition, "SN2025", "SN2025 Tittel", "sn2025_mapping.json")
-save_mapping(map_sn25, "sn2025_mapping.json")
 
 
 # saving finetuned fasttext model and predicting using that
 model = run_fasttext_model()
 pred_labels, probs = model.predict(test_input)
 
+# preparing output
+pred_labels, test_labels = output_prep(pred_labels, test_labels)
+
+df_results = metrics(test_labels, pred_labels)
+print(df_results)
+
 # Analysing output of fasttext
 df_res = wrong_preds_df(pred_labels=pred_labels, true_labels=test_labels, input_text=test_input, mapping_file="sn2025_mapping.json")
-df_results = metrics(test_labels, pred_labels)
+
+print(df_res)
+df_res.to_csv("wrong_preds_df.csv", index=False)
+
+# splitting the df_hier into 
+
+
 
 
 

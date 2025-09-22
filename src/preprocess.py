@@ -20,12 +20,12 @@ def cleaning_df(df:pd.DataFrame) -> pd.DataFrame:
         df = df[df.groupby("sn2025_1")["navn"].transform("count") >10]
     return df
 
+def load_mapping(filename, folder="mappings"):
+    filepath = os.path.join(folder, filename)
+    with open(filepath, "r", encoding="utf-8") as f:
+        return json.load(f)
+    print("Mapping loaded")
 
-def mapping(df, key_col, value_col, filename):
-    
-    
-    return dict(zip(df[key_col], df[value_col]))
-    
 
 def save_mapping(mapping_dict, filename, folder="mappings"):
     os.makedirs(folder, exist_ok=True)  # creating folder if it doesn't exist
@@ -35,9 +35,23 @@ def save_mapping(mapping_dict, filename, folder="mappings"):
         json.dump(mapping_dict, f, ensure_ascii=False, indent=4)
 
     print(f"Mapping saved to {filepath}")
-
-
-def load_mapping(filename, folder="mappings"):
+    
+def mapping(df, key_col, value_col, filename, folder="mappings"):
     filepath = os.path.join(folder, filename)
-    with open(filepath, "r", encoding="utf-8") as f:
-        return json.load(f)
+    if os.path.exists(filepath):
+        load_mapping(filename)
+    else:
+        save_mapping(dict(zip(df[key_col], df[value_col])), filename)
+    return None
+
+
+def df_hier_levels(df: pd.DataFrame, column:str)-> dict[str, pd.DataFrame]:
+    new_dfs = {}
+    levels = df[column].unique()
+    for i in levels:
+        new_dfs[i] = df[df[column] == i]
+    return new_dfs
+
+
+
+

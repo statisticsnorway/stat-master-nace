@@ -11,8 +11,9 @@ from src.config import SAVE_PATH
 # Format for FastText
 
 def fasttext_dataprep(df: pd.DataFrame, columns:list[str])-> pd.DataFrame:
+    df = df.copy()
     df["fasttext_format"] = ("__label__" + df[columns].astype(str).agg(' '.join, axis=1))
-    return df
+    return df 
 
 def splitting_dataset(df:pd.DataFrame, statify_column:str)->pd.DataFrame:
     # train vs test
@@ -29,7 +30,7 @@ def splitting_dataset(df:pd.DataFrame, statify_column:str)->pd.DataFrame:
     return train, val, test
     
 def pred_prep(df:pd.DataFrame, input_cols:list[str], output_cols:list[str])->list[str]:
-    labels = df[output_cols].astype(str).values.tolist()
+    labels = df[output_cols[0]].astype(str).tolist()
     input_txt = (df[input_cols].astype(str).agg(' '.join, axis=1)).tolist()
     return input_txt, labels
 
@@ -47,15 +48,16 @@ def fasttext_input(df:pd.DataFrame, columns:list[str], statify_column:str,
 
 
 ### Fasttext result preparation
-
-def wrong_preds_df(pred_labels:list[str], true_labels:list[str], input_text:list[str], mapping_file:str)->pd.DataFrame:
-    """All the wrong predictions and the true labels are placed in a dataframe"""
+def output_prep(pred_labels:list[str], true_labels:list[str]):
     # arrays of the true and predicted values
     # clean prediction labels
     pred_labels = [label[0].replace('__label__', '') for label in pred_labels]
-    true_labels = [label[0].replace('__label__', '') for label in true_labels]
     pred_labels, true_labels = np.array(pred_labels), np.array(true_labels)
-    input_text, pred_labels, true_labels = np.array(input_text), np.array(pred_labels), np.array(true_labels)
+    return pred_labels, true_labels
+
+def wrong_preds_df(pred_labels:list[str], true_labels:list[str], input_text:list[str], mapping_file:str)->pd.DataFrame:
+    """All the wrong predictions and the true labels are placed in a dataframe"""
+    input_text = np.array(input_text)
     
     # filtering to only wrong classified values
     val_text_wp = input_text[pred_labels != true_labels]
@@ -64,17 +66,18 @@ def wrong_preds_df(pred_labels:list[str], true_labels:list[str], input_text:list
 
     # building mapping dictionaries
     #map_sn07 = dict(zip(df['SN2007'], df['SN2007 Tittel']))
-    map_sn07 = load_mapping(mapping_file)
+    map_file = load_mapping(mapping_file)
 
     # new DataFrame
     df_wrong_preds = pd.DataFrame({
         'input text': val_text_wp,
         'wrong predictions':wrong_pred, 
-        'prediction name':[map_sn07.get(x) for x in wrong_pred], 
+        'prediction name':[map_file.get(x) for x in wrong_pred], 
         'true codes':true_code, 
-        'code name':[map_sn07.get(x) for x in true_code]})
+        'code name':[map_file.get(x) for x in true_code]})
     df_wrong_preds=df_wrong_preds.drop_duplicates()
     return df_wrong_preds
+
 
 
 

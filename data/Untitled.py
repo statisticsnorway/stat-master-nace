@@ -35,7 +35,7 @@ df_overgang = pd.read_csv(
 
 
 # NACE 2007 Hierarchi
-#df_hier = pd.read_csv("/ssb/stamme01/data811/NACE/data//nace07_hierarki.csv", sep=";", encoding="latin-1")
+df_hier = pd.read_csv("/ssb/stamme01/data811/NACE/data//nace07_hierarki.csv", sep=";", encoding="latin-1")
 
 
 # Hent ut data for gamle nace-koder, org-nr og fritekst.
@@ -75,16 +75,16 @@ if set(['tekst', 'navn', 'sf_type', 'sn2025_1', 'sn2025_1_gdato']).issubset(set(
 df_new.groupby("sn2025_1")["navn"].transform("count")
 
 # %%
-df_new.head()
+df_new
+
+# %%
+df_hier
 
 # %%
 df.head()
 
 # %%
-df_overgang.head() 
-
-# %%
-df_hier.head()
+df_overgang.head() #[df_overgang['SN2025']=='00.000']
 
 # %%
 # ----------- df_overgang datasettet --------------
@@ -138,7 +138,7 @@ print("edit", edit.shape[0])  # edit 780
 print("del", deleted.sum())  # del 0
 print("new_desc", new_desc.shape[0])  # new_desc 455
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # # Fasttext
 
 # %%
@@ -176,7 +176,7 @@ test_text = (test["tekst"] + " " + test["navn"]).tolist()
 test.index = pd.RangeIndex(start=0, stop=len(test))
 test.iloc[1]
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # ## Fasttext hyperparameter tuning
 # FastText's autotune feature allows you to find automatically the best hyperparameters for your dataset. Hyperparameters are learning rate and epochs.
 # - er fasttext bedre på å predikere tall eller text? 
@@ -270,7 +270,7 @@ df_wrong_preds
 # %%
 model = 
 
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # # Visualising the distribution
 
 # %%
@@ -467,7 +467,7 @@ train.columns
 df_hier_sorted = df_hier.sort_values(by="level", ascending=True, inplace=False)
 df_hier_sorted
 
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # # Visualizing the hierarchy of the NACE07 codes
 
 # %%

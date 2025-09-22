@@ -1,11 +1,23 @@
 import numpy as np
+import pandas as pd
 import sklearn.metrics as m
 from sklearn.preprocessing import OneHotEncoder 
 
 
-def brier_multi(targets, probs):
-    ohe_targets = OneHotEncoder().fit_transform(targets.reshape(-1, 1))
-    ohe_probs = OneHotEncoder().fit_transform(probs.reshape(-1, 1))
+def brier_multi(targets, probs):    
+    #making sure targets and probs are 1D arrays
+    targets = np.array(targets).reshape(-1, 1)
+    probs = np.array(probs).reshape(-1, 1)
+    
+    # 2D array for fitting
+    all_labels = np.concatenate((targets, probs))
+    all_labels = all_labels.reshape(-1, 1)
+    
+    encoder = OneHotEncoder(sparse_output=False)
+    encoder.fit(all_labels)
+    
+    ohe_targets = encoder.transform(targets)
+    ohe_probs = encoder.transform(probs)
     return np.mean(np.sum(np.square(ohe_probs - ohe_targets), axis=1))
 
 
