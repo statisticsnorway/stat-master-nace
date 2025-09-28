@@ -1,9 +1,10 @@
 import pandas as pd
 from src.config import DATA_PATH, OLD_DATA, TRANSITION_DATA_PATH, HIERARCHY_DATA, RANDOM_STATE, SAVE_PATH
 from src.preprocess import column_subset, cleaning_df, df_hier_levels, derive_hier
-from src.utils.baseline_utils import fasttext_input, wrong_preds_df, output_prep
-from src.models.baseline import run_fasttext_model
+from src.utils.baseline_utils import fasttext_input, wrong_preds_df, output_prep, pred_prep
+from src.models.baseline import objective_cv, tune_fasttext_cv, fasttext_train_fn
 from src.metrics import metrics
+import numpy as np
 
 # NACE 2007 Hierarchi
 df_hier = pd.read_csv(HIERARCHY_DATA,sep=";",encoding="latin-1")
@@ -16,7 +17,6 @@ df_sn25 = column_subset(df)
 
 # splitting the df_hier into multiple DataFrames based on level
 df_hiers=df_hier_levels(df=df_hier, column='level')
-#df_hier_1, df_hier_2, df_hier_3, df_hier_4, df_hier_5 = df_hiers[1],df_hiers[2],df_hiers[3],df_hiers[4],df_hiers[5] # TODO: må kanskje slette noen hvis jeg ikke får bruk for de.
 df_hier_div = df_hiers[2]
     
 # turning datasett into 
@@ -25,44 +25,82 @@ df_sn25_hier = derive_hier(df=df_sn25, subclass_col='sn2025_1', section_map=map_
 print(df_sn25_hier)
 
 
-hierarchies = ["section", "division", "group", "class"]
-levels = [1, 2, 3, 4]
-hier_metrics = {}
-df_wrong_res_hier={}
+hierarchies = ["section", "division", "group", "class", "sn2025_1"]
+levels = [1, 2, 3, 4, 5]
+hier_metrics_train = {}
+df_wrong_res_hier_train={}
+hier_metrics_test = {}
+df_wrong_res_hier_test={}
+
+
+
 
 for hier, hier_level in zip(hierarchies, levels):
     print(f"\n=== Training on hierarchy: {hier} ===")
     
     # train and pred for each hierarchy
-    val_input, val_labels, test_input, test_labels = fasttext_input(
-        df=df_sn25_hier, columns=[hier,"tekst","navn"], statify_column=hier, 
-    input_cols_val=["tekst","navn"], output_cols_val=[hier], 
-    input_cols_test=["tekst","navn"], output_cols_test=[hier],
-    train_file=f"train_fasttext_{hier}", val_file=f"val_fasttext_{hier}", test_file=f"test_fasttext_{hier}")
-    model = run_fasttext_model(model_file=f"model_nace_{hier}", train_file=f"train_fasttext_{hier}", 
-                               val_file=f"val_fasttext_{hier}")
+    train, test = fasttext_input(
+        df=df_sn25_hier, columns=[hier,"tekst","navn"], statify_column=hier,
+    train_file=f"data_fasttext/train_fasttext_{hier}", test_file=f"data_fasttext/test_fasttext_{hier}")
+    
+    train_input_txt, train_labels, train=pred_prep(train, input_cols=["tekst","navn"], output_cols=[hier])
+    test_input_txt, test_labels, test=pred_prep(test, input_cols=["tekst","navn"], output_cols=[hier])
+    
+    
+    # hyperparameter tuning with k-fold cv
+    best_params = tune_fasttext_cv(train, input_cols=["tekst","navn"], output_cols=[hier], n_trials=3)
+    
+    model = fasttext_train_fn(train_file=f"{SAVE_PATH}/data_fasttext/train_fasttext_{hier}.txt", best_params=best_params, model_file=f"{SAVE_PATH}/models_fasttext/model_nace_{hier}.txt") 
+                        
     
     map_hier = dict(zip(df_hier[df_hier['level'] == hier_level]['code'], 
                     df_hier[df_hier['level'] == hier_level]['name']))
-
-    # predicting
-    pred_labels, probs = model.predict(test_input)
-
+    
+    # Predictions on train and test sets
+    pred_labels_train, probs_train = model.predict(train_input_txt)
+    pred_labels_test, probs_test = model.predict(test_input_txt)
+    
+    
     # preparing output
-    pred_labels, test_labels = output_prep(pred_labels, test_labels)
-
-    df_results = metrics(test_labels, pred_labels)
+    pred_labels_train = output_prep(pred_labels_train)
+    train_labels_arr = np.array(train_labels)
+    pred_labels_test = output_prep(pred_labels_test)
+    test_labels_arr = np.array(test_labels)
     
-    hier_metrics[hier]=df_results
-    
-    # Analysing output of fasttext
-    df_res = wrong_preds_df(pred_labels=pred_labels, true_labels=test_labels, input_text=test_input, map_file=map_hier)
-    df_wrong_res_hier[hier]=df_res
-    print(df_wrong_res_hier)
-    print(hier_metrics)
-    df_res.to_csv(f"{hier}_df_wrong_res.csv", index=False)
-    df_results.to_csv(f"{hier}_metrics.csv", index=False)
+    #metrics
+    df_results_train = metrics(train_labels_arr, pred_labels_train)
+    df_results_test = metrics(test_labels_arr, pred_labels_test)
+    hier_metrics_train[hier] = df_results_train
+    hier_metrics_test[hier] = df_results_test
 
+    
+    
+     # analyzing wrong predictions for train and test
+    df_res_train = wrong_preds_df(pred_labels_train, train_labels_arr, train_input_txt, map_hier)
+    df_res_test = wrong_preds_df(pred_labels_test, test_labels_arr, test_input_txt, map_hier)
+    df_wrong_res_hier_train[hier] = df_res_train
+    df_wrong_res_hier_test[hier] = df_res_test
+
+    # saving the results
+    df_res_train.to_csv(f"results/fasttext_each_hier_level/{hier}_df_wrong_res_train.csv", index=False)
+    df_results_train.to_csv(f"results/fasttext_each_hier_level/{hier}_metrics_train.csv")
+    df_res_test.to_csv(f"results/fasttext_each_hier_level/{hier}_df_wrong_res_test.csv", index=False)
+    df_results_test.to_csv(f"results/fasttext_each_hier_level/{hier}_metrics_test.csv")
+
+    # printing them
+    
+    print('df_results_train')
+    print(df_results_train)
+    print('df_results_test')
+    print(df_results_test)
+    print("df_res_train")
+    print(df_res_train)
+    print("df_res_test")
+    print(df_res_test)
+    
     """
     If we want to finetune new fasttext models, we must delete the saved models in SAVE_PATH and then rerun the run_fastext_model code.
     """
+    
+
+    
