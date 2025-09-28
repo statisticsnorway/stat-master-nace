@@ -32,9 +32,11 @@ def metrics(target, pred):
             "recall": m.recall_score(target, pred, zero_division=np.nan, average=avg),
             "precision": m.precision_score(target, pred, zero_division=np.nan, average=avg),
         }
-    results['brier score'] = brier_multi(target, pred)
+    results['brier score'] = {"score":brier_multi(target, pred)}
 
     # Convert to DataFrame
     df_results = pd.DataFrame(results).T  # .T transposes so metrics are rows
+    df_results = df_results.set_index(np.array(['macro', 'micro', 'weighted', 'score']))
+    df_results.index.name = "average"
     return df_results
 

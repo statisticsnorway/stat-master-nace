@@ -3,6 +3,34 @@ import numpy as np
 import pandas as pd
 import json
 import os
+import string
+import re
+
+first_names_menn_df = pd.read_excel("/home/stud-msh/stat-master-nace/data/manneNavn.xlsx")
+first_names_kvinner_df = pd.read_excel("/home/stud-msh/stat-master-nace/data/kvinneNavn.xlsx")
+first_names_df = pd.concat([first_names_menn_df, first_names_kvinner_df], ignore_index=True)
+
+last_names_df = pd.read_excel("/home/stud-msh/stat-master-nace/data/etternavn.xlsx")
+
+# Converting to sets
+first_names = set(first_names_df.iloc[:, 0].dropna().str.strip())
+last_names = set(last_names_df.iloc[:, 0].dropna().str.strip())
+
+# Combining into one set
+all_names = first_names.union(last_names)
+
+# Compiling regex 
+pattern = r"\b(" + "|".join(map(re.escape, all_names)) + r")s?\b"
+name_regex = re.compile(pattern, flags=re.IGNORECASE)
+
+all_names_lower = {n.lower() for n in all_names}
+
+def remove_names(text):
+    # Remove punctuation (replace with spaces)
+    text = text.translate(str.maketrans(string.punctuation, " " * len(string.punctuation)))
+    # Remove names
+    words = [w for w in text.split() if w.lower() not in all_names_lower]
+    return " ".join(words)
 
 
 def column_subset(df):
@@ -11,14 +39,20 @@ def column_subset(df):
     return df[["tekst", "navn", "sn2025_1"]]
 
 def cleaning_df(df:pd.DataFrame) -> pd.DataFrame:
-    """Cleaning dataframe by handling missing values """
+    df.copy()
+    
     if (df == "* Har ingen korrespondanse i SN2007").any().any():
         df = df.replace(
             to_replace="* Har ingen korrespondanse i SN2007", 
             value=np.nan)
+        
     if set(["tekst", "navn", "sn2025_1"]).issubset(set(df.columns)):
         df = df[df.groupby("sn2025_1")["navn"].transform("count") >10]
         df = df[df['sn2025_1']!='00.000']
+    
+    # Filtering out names
+    df['navn'] = df['navn'].apply(remove_names)
+    
     return df
 
 
