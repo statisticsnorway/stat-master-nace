@@ -212,6 +212,8 @@ rsconnect/
 src/data/.poetry/
 # Poetry cache
 /data/.poetry/cache/
+poetry.lock
+pyproject.toml
 
 
 # Blaise specific ignores
