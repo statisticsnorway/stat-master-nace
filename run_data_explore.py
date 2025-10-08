@@ -1,4 +1,5 @@
 import pandas as pd
+
 from src.config import DATA_PATH, OLD_DATA, TRANSITION_DATA_PATH, HIERARCHY_DATA, RANDOM_STATE, SAVE_PATH
 from src.exploration import explore_data_transition, count_per_category
 

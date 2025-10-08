@@ -59,4 +59,5 @@ def explore_data_transition(df):
     print('del',deleted.sum()) #del 0
     print('new_desc',new_desc.shape[0]) #new_desc 455
 
-    
+
+

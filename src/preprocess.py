@@ -5,6 +5,10 @@ import json
 import os
 import string
 import re
+from bs4 import BeautifulSoup
+
+from config import DATA_PATH, OLD_DATA, TRANSITION_DATA_PATH, HIERARCHY_DATA, RANDOM_STATE, SAVE_PATH
+
 
 first_names_menn_df = pd.read_excel("/home/stud-msh/stat-master-nace/data/manneNavn.xlsx")
 first_names_kvinner_df = pd.read_excel("/home/stud-msh/stat-master-nace/data/kvinneNavn.xlsx")
@@ -32,6 +36,14 @@ def remove_names(text):
     words = [w for w in text.split() if w.lower() not in all_names_lower]
     return " ".join(words)
 
+def general_preprocess(text):
+    #Further preprocessing
+    text = text.lower()  # Lowercase
+    text = re.sub(r'\d+', '', text)  # Remove numbers
+    text = text.translate(str.maketrans('', '', string.punctuation))  # Remove punctuation
+    text = re.sub(r"[^a-zA-Z0-9æøåÆØÅ]", " ", text)  # Remove special characters
+    text = BeautifulSoup(text, "html.parser").get_text()  # Remove HTML tags
+    return text
 
 def column_subset(df):
     """Choosing a subset of columns """
@@ -47,12 +59,15 @@ def cleaning_df(df:pd.DataFrame) -> pd.DataFrame:
             value=np.nan)
         
     if set(["tekst", "navn", "sn2025_1"]).issubset(set(df.columns)):
-        df = df[df.groupby("sn2025_1")["navn"].transform("count") >10]
+        df = df[df.groupby("sn2025_1")["navn"].transform("count") >20]
         df = df[df['sn2025_1']!='00.000']
+    
+    # general preprocess
+    df['tekst'] = df['tekst'].apply(general_preprocess)
+    df['navn'] = df['navn'].apply(general_preprocess)
     
     # Filtering out names
     df['navn'] = df['navn'].apply(remove_names)
-    
     return df
 
 
@@ -77,6 +92,25 @@ def derive_hier(df: pd.DataFrame, subclass_col:str, section_map):
     return df
 
 
+def run_preprocess():
+    # NACE 2007 Hierarchi
+    df_hier = pd.read_csv(HIERARCHY_DATA,sep=";",encoding="latin-1")
+    # Treningsdata
+    df = pd.read_parquet(DATA_PATH)
+
+    # Getting data for old sn-codes, org-nr and text and filtering to only include groups with 10 > datapoints
+    df = cleaning_df(df)
+    df_sn25 = column_subset(df)
+
+    # splitting the df_hier into multiple DataFrames based on level
+    df_hiers = df_hier_levels(df=df_hier, column='level')
+    df_hier_div = df_hiers[2]
+
+    # turning datasett into hierarkies
+    map_sec = dict(zip(df_hier["code"], df_hier["parentCode"]))
+    df_sn25_hier = derive_hier(df=df_sn25, subclass_col='sn2025_1', section_map=map_sec)
+    df_sn25_hier.to_csv(f"{SAVE_PATH}/data_fasttext/data_preprocessed.csv", index=False)
+    print(df_sn25_hier)
 
 """
 def load_mapping(filename, folder="mappings"):
@@ -104,6 +138,10 @@ def mapping(df, key_col, value_col, filename, folder="mappings"):
         mp = load_mapping(filename)
     return mp
 """
+
+
+if __name__=='__main__':
+    run_preprocess()
 
 
 

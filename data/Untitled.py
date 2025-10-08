@@ -66,26 +66,56 @@ groups_25_07.count()  # Shape is (45, 1)
 print('done')
 
 # %%
-grouped = df_new[df_new.groupby("sn2025_1")["navn"].transform("count") >10]
-if set(['tekst', 'navn', 'sf_type', 'sn2025_1', 'sn2025_1_gdato']).issubset(set(grouped.columns)):
-    print('yes')
-# grouped.groupby("sn2025_1")["navn"].count()
+from faker.providers.person.no_NO import Provider
+import re
+import string
+
+first_names_menn_df = pd.read_excel("/home/stud-msh/stat-master-nace/data/manneNavn.xlsx")
+first_names_kvinner_df = pd.read_excel("/home/stud-msh/stat-master-nace/data/kvinneNavn.xlsx")
+first_names_df = pd.concat([first_names_menn_df, first_names_kvinner_df], ignore_index=True)
+
+last_names_df = pd.read_excel("/home/stud-msh/stat-master-nace/data/etternavn.xlsx")
+
+# Converting to sets
+first_names = set(first_names_df.iloc[:, 0].dropna().str.strip())
+last_names = set(last_names_df.iloc[:, 0].dropna().str.strip())
+
+# Combining into one set
+all_names = first_names.union(last_names)
+
+# Compiling regex 
+pattern = r"\b(" + "|".join(map(re.escape, all_names)) + r")\b"
+name_regex = re.compile(pattern, flags=re.IGNORECASE)
+
+all_names_lower = {n.lower() for n in all_names}
+
+def remove_names(text):
+    # Remove punctuation (replace with spaces)
+    text = text.translate(str.maketrans(string.punctuation, " " * len(string.punctuation)))
+    # Remove names
+    words = [w for w in text.split() if w.lower() not in all_names_lower]
+    return " ".join(words)
+
+def column_subset(df):
+    """Choosing a subset of columns """
+    #return df[["orgnr", "tekst", "navn", "SN2007"]]
+    return df[["tekst", "navn", "sn2025_1"]]
+
+def cleaning_df(df:pd.DataFrame) -> pd.DataFrame:
+    df.copy()
+        
+    if set(["tekst", "navn", "sn2025_1"]).issubset(set(df.columns)):
+        df = df[df.groupby("sn2025_1")["navn"].transform("count") >10]
+        df = df[df['sn2025_1']!='00.000']
+    
+    # Filtering out names
+    df['navn'] = df['navn'].apply(remove_names)
+    
+    return df
+
 
 # %%
-df_new.groupby("sn2025_1")["navn"].transform("count")
-
-# %%
-df_new['sn2025_1'].dtype
-
-# %%
-l=df_hier['level'].dtype
-l
-
-# %%
-df_hier[df_hier['level']==1]
-
-# %%
-df.head()
+cleaning_df(df_new)['navn']
 
 # %%
 df_overgang.head() #[df_overgang['SN2025']=='00.000']
@@ -146,39 +176,20 @@ print("new_desc", new_desc.shape[0])  # new_desc 455
 # # Fasttext
 
 # %%
-# Fasttext data preparation
-
-# Format for FastText
-df_sn07["fasttext_format"] = (
-    "__label__" + df_sn07["SN2007"] + " " + df_sn07["tekst"] + " " + df_sn07["navn"]
-)
-
-# train vs test
-train, temp = train_test_split(df_sn07, test_size=0.4, random_state=42)#, stratify=df_sn07['SN2007'])
-#### stratified cross validation instead of validation set
-
-# test vs validation
-test, val = train_test_split(temp, test_size=0.5, random_state=42)#, stratify=temp['SN2007'])
-
-# Save to a text file
-data = '/ssb/stamme01/data811/NACE/'
-
-train["fasttext_format"].to_csv(f"{data}/train_fasttext.txt", index=False, header=False)
-val["fasttext_format"].to_csv(f"{data}/val_fasttext.txt", index=False, header=False)
-test["fasttext_format"].to_csv(f"{data}/test_fasttext.txt", index=False, header=False)
-
-# Input for the prediction method:
-val_labels = val["SN2007"].tolist()
-val_text = (val["tekst"] + " " + val["navn"]).tolist()
-
-test_labels = test["SN2007"].tolist()
-test_text = (test["tekst"] + " " + test["navn"]).tolist()
-
-
+df_sn25_hier = pd.read_csv(f"/ssb/stamme01/data811/NACE/data_fasttext/data_preprocessed.csv", dtype={'division':str, 'group':str, 'class':str, 'sn2025_1':str})
+print(df_sn25_hier['division'].unique())
+print(df_sn25_hier.info())
+df_sn25_hier[df_sn25_hier['division']=='01']
 
 # %%
-test.index = pd.RangeIndex(start=0, stop=len(test))
-test.iloc[1]
+import fasttext
+
+df_sn25_hier = pd.read_csv(f"/ssb/stamme01/data811/NACE/data_fasttext/data_preprocessed.csv")
+    
+model = fasttext.load_model(f"/ssb/stamme01/data811/NACE/models_fasttext/model_nace_subclass.bin")
+labels,_ = model.predict('dyrking av korn og gras skogsdrift')
+labels = [l[0].replace('__label__', '') for l in labels]
+labels = np.array(labels)
 
 # %% [markdown]
 # ## Fasttext hyperparameter tuning
@@ -190,91 +201,6 @@ test.iloc[1]
 #
 
 # %% [markdown]
-# ### Training and predicting on codes
-
-# %%
-# Kjøre dataene inn på fasttext modellen (og andre relevante modeller) og se hva slags resultater vi får
-
-# Skipgram model, finetuned:
-model = fasttext.train_supervised(input=f"{data}/train_fasttext.txt", autotuneValidationFile=f"{data}/val_fasttext.txt") # Hyperparameter tuning by using "autotuneValidationFile" parameter
-
-#Saving the model
-model.save_model(f"{data}/model_nace.bin")
-
-# using saved model
-model = fasttext.load_model(f"{data}/model_nace.bin")
-
-
-
-
-# %% [markdown]
-# #### Metrics
-# Kjøre med scikit learn i tillegg **weighted-** og **macro F1 score** for å fokusere mer på laveste nivåene.
-
-# %%
-from sklearn.metrics import f1_score
-
-labels, probs = model.predict(val_text) 
-# clean prediction labels
-pred_labels = [label[0].replace('__label__', '') for label in labels]
-
-results = {}
-
-for metric in ['macro', 'micro', 'weighted']:
-    results[metric] = {
-        "f1": m.f1_score(val_labels, pred_labels, zero_division=np.nan, average=metric),
-        "recall": m.recall_score(val_labels, pred_labels, zero_division=np.nan, average=metric),
-        "precision": m.precsion_score(val_labels, pred_labels, zero_division=np.nan, average=metric),
-        #brier_report = m.brier_score_loss(val_labels, pred_labels)
-        
-    }
-
-# Convert to DataFrame
-df_results = pd.DataFrame(results).T  # .T transposes so metrics are rows
-print(df_results)
-
-#print(brier_report)
-
-# %% [markdown]
-# #### Finding out which labels are classified wrong
-
-# %%
-################# Gjøre dette om til en funksjon s################
-
-# arrays of the truee and predicted values
-pred_labels=np.array(pred_labels)
-val_labels=np.array(val_labels)
-
-# filtering to only wrong classified values
-val_text_wp = val_text[pred_labels != val_labels]
-wrong_pred = pred_labels[pred_labels != val_labels]    
-true_code = val_labels[pred_labels != val_labels]
-
-# building mapping dictionaries
-map_sn07 = dict(zip(df_overgang['SN2007'], df_overgang['SN2007 Tittel']))
-
-# new DataFrame
-df_wrong_preds = pd.DataFrame({
-    'input text': val_text_wp,
-    'wrong predictions':wrong_pred, 
-    'prediction name':[map_sn07.get(x) for x in wrong_pred], 
-    'true codes':true_code, 
-    'code name':[map_sn07.get(x) for x in true_code]})
-df_wrong_preds=df_wrong_preds.drop_duplicates()
-df_wrong_preds
-
-# %% [markdown]
-# ### Training and predicting on code names
-
-# %%
-
-# %% [markdown]
-# ## Hierarchical fasttext
-
-# %%
-model = 
-
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # # Visualising the distribution
 
 # %%
@@ -284,42 +210,42 @@ model =
 #
 # Checking the distribution of the classes on Subclass category 10.201
 
-# %%
-train["Subclass"] = train["SN2007"].astype(float)
-train["Subclass"]
-
-# %% [markdown]
-#
-# Checking the distribution of the classes on Class category 10.20
-
-# %%
-train["Class"] = round(train["Subclass"], 2).astype(str)
-train["Class"]
-
-# %% [markdown]
-#
-# Checking the distribution of the classes on Group category 10.2
-
-# %%
-train["Group"] = round(train["Subclass"], 1).astype(str)
-train["Group"]
-
-# %%
-counts_gr = train["Group"].value_counts()
-plt.bar(counts_gr.index, counts_gr.values)
-plt.xlabel("Category")
-plt.ylabel("Count")
-plt.title("Count of Values in Category Column")
-plt.xticks(rotation=90)  # Rotates x-axis labels by 45 degrees
-plt.show()
-
 # %% [markdown]
 #
 # Checking the distribution of the classes on Division category 10
 
 # %%
-train["Division"] = train["Subclass"].astype(int).astype(str)
-train["Division"]
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+df_ = pd.read_csv(f"/ssb/stamme01/data811/NACE/data_fasttext/data_preprocessed.csv")
+n=6
+cnt_grps = df_.groupby("division")["group"].nunique()#.sort_values(ascending=False)
+min_idx = cnt_grps.nsmallest(n).index
+max_idx = cnt_grps.nlargest(n).index
+plt.plot(cnt_grps.index, cnt_grps.values, '.')
+
+# Plot the lowest and highest dots in red
+plt.plot(min_idx, cnt_grps.loc[min_idx].values, '.', color='red', markersize=8, label="Lowest")
+plt.plot(max_idx, cnt_grps.loc[max_idx].values, '.', color='red', markersize=8, label="Highest")
+
+#print(np.array(df_["division"]).astype(int))
+print(cnt_grps)
+
+plt.show()
+
+
+# %%
+df_ = pd.read_csv(f"/ssb/stamme01/data811/NACE/data_fasttext/data_preprocessed.csv")
+
+div_dist = df_.groupby("division")["class"].nunique().sort_values(ascending=False)
+#print(np.array(df_["division"]).astype(int))
+print(div_dist)
+
+plt.plot(div_dist.index, div_dist.values, '.')
+plt.show()
+
 
 # %%
 import seaborn as sns
@@ -375,15 +301,14 @@ ax1.bar(tr_div_gr.index, div_dist.values)
 ax1.set_xlabel("Division")
 ax1.set_ylabel("Number of Groups", color="black")
 ax1.tick_params(axis="y", labelcolor="black")
-plt.xticks(rotation=90)
 plt.title("Count of Groups per Division")
-
+"""
 # secondary y-axis to indicate number of groups
 ax2 = ax1.twinx()
 ax2.plot(tr_div_gr.index, tr_div_gr.values, "o-", color="red", label="Number of Groups")
 ax2.set_ylabel("Distinict Number of Groups", color="red")
 ax2.tick_params(axis="y", labelcolor="red")
-
+"""
 plt.tight_layout()
 plt.show()
 
@@ -471,11 +396,71 @@ train.columns
 df_hier_sorted = df_hier.sort_values(by="level", ascending=True, inplace=False)
 df_hier_sorted
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # # Visualizing the hierarchy of the NACE07 codes
 
 # %%
+import pydot
+from anytree.exporter import DotExporter
+from IPython.display import Image
+from anytree import Node, RenderTree
+
+# Creating the tree through a dictionary of nodes
+nodes = {}
+roots = []
+
+dummy_root = Node("AllRoots")
+for _, row in df_hier_sorted.iterrows():
+    if row["parentCode"] is np.nan:
+        nodes[row["code"]] = Node(row["code"], parent=dummy_root, alias=row["name"])
+
+        roots.append(nodes[row["code"]])
+    else:
+        nodes[row["code"]] = Node(
+            row["code"], parent=nodes[row["parentCode"]], alias=row["name"]
+        )
+
+roots = sorted(roots, key=lambda r: r.alias)
+
+for i, root in enumerate(roots):
+    # Export to dotfile for each root
+    dot_filename = f"forest_section_{i}.dot"
+    pdf_filename = f"forest_section_{i}.pdf"
+
+    DotExporter(
+        root,
+        nodeattrfunc=lambda node: f'label="{getattr(node, "alias", node.name)}"',
+        edgeattrfunc=lambda parent, child: 'color=gray'
+    ).to_dotfile(dot_filename)
+
+    # Convert dot to pdf using pydot
+    (graph,) = pydot.graph_from_dot_file(dot_filename)
+    graph.write_pdf(pdf_filename)
+
+    # Optionally display in Jupyter/Colab
+    display(Image(pdf_filename))
+
+# %%
 # Er det noen fellestrekk i friteksten i enkelte grupper som kan beskrives?
+
+    DotExporter(
+        root,
+        nodeattrfunc=lambda node: f'label="{getattr(node, "alias", node.name)}"',
+        edgeattrfunc=lambda parent, child: 'color=gray'
+    ).to_dotfile(dot_filename)
+
+    # Convert dot to pdf using pydot
+    (graph,) = pydot.graph_from_dot_file(dot_filename)
+    graph.write_pdf(pdf_filename)
+
+    # Optionally display in Jupyter/Colab
+    display(Image(pdf_filename))
+    
+    
+    
+
+
+
 
 df_hier_sorted = df_hier.sort_values(by="level", ascending=True, inplace=False)
 
@@ -522,18 +507,10 @@ graph.write_png("forest.png")
 Image("forest.png")  # displays in Jupyter/Colab
 
 
-# DotExporter(dummy_root,
-#            nodeattrfunc=lambda node: 'shape=box, style=filled, fillcolor=lightblue' if node.children else 'shape=ellipse, fillcolor=lightgreen',
-#            edgeattrfunc=lambda parent, child: 'color=gray').to_picture("forest_hidden_root.png")
+DotExporter(dummy_root,
+           nodeattrfunc=lambda node: 'shape=box, style=filled, fillcolor=lightblue' if node.children else 'shape=ellipse, fillcolor=lightgreen',
+           edgeattrfunc=lambda parent, child: 'color=gray').to_picture("forest_hidden_root.png")
 
-
-# %%
-
-# %%
-
-# %%
-
-# %%
 
 # %%
 

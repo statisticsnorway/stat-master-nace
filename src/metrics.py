@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+
 import sklearn.metrics as m
 from sklearn.preprocessing import OneHotEncoder 
 
@@ -40,3 +42,40 @@ def metrics(target, pred):
     df_results.index.name = "average"
     return df_results
 
+
+def metrics_levels(target:list[str], pred:list[str]):
+    """
+    target: Subclass targets.
+    preds: Subclass predictions.
+    
+    Aggregates subclasses into higher hierarchies and evaluates the metrics on each hierarchy level.
+    """
+    target, pred = np.array(target), np.array(pred)
+
+    cl_t = np.array([s[:-1] for s in target])
+    cl_p = np.array([s[:-1] for s in pred])
+    
+    gro_t = np.array([s[:-2] for s in target])
+    gro_p = np.array([s[:-2] for s in pred])
+    
+    div_t = np.array([s[:2] for s in target])
+    div_p = np.array([s[:2] for s in pred])
+    
+    
+    res_cl=metrics(cl_t, cl_p)
+    res_gro=metrics(cl_t, cl_p)
+    res_div=metrics(div_t, div_p)
+    
+    return res_cl, res_gro, res_div
+    
+
+def df_to_table(df, title=""):
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.axis('off')
+    ax.axis('tight')
+    ax.table(cellText=df.values, 
+             colLabels=df.columns, 
+             rowLabels=df.index, 
+             loc='center')
+    plt.title(title)
+    return fig
