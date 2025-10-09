@@ -173,25 +173,6 @@ print("del", deleted.sum())  # del 0
 print("new_desc", new_desc.shape[0])  # new_desc 455
 
 # %% [markdown]
-# # Fasttext
-
-# %%
-df_sn25_hier = pd.read_csv(f"/ssb/stamme01/data811/NACE/data_fasttext/data_preprocessed.csv", dtype={'division':str, 'group':str, 'class':str, 'sn2025_1':str})
-print(df_sn25_hier['division'].unique())
-print(df_sn25_hier.info())
-df_sn25_hier[df_sn25_hier['division']=='01']
-
-# %%
-import fasttext
-
-df_sn25_hier = pd.read_csv(f"/ssb/stamme01/data811/NACE/data_fasttext/data_preprocessed.csv")
-    
-model = fasttext.load_model(f"/ssb/stamme01/data811/NACE/models_fasttext/model_nace_subclass.bin")
-labels,_ = model.predict('dyrking av korn og gras skogsdrift')
-labels = [l[0].replace('__label__', '') for l in labels]
-labels = np.array(labels)
-
-# %% [markdown]
 # ## Fasttext hyperparameter tuning
 # FastText's autotune feature allows you to find automatically the best hyperparameters for your dataset. Hyperparameters are learning rate and epochs.
 # - er fasttext bedre på å predikere tall eller text? 
@@ -219,172 +200,35 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-df_ = pd.read_csv(f"/ssb/stamme01/data811/NACE/data_fasttext/data_preprocessed.csv")
-n=6
-cnt_grps = df_.groupby("division")["group"].nunique()#.sort_values(ascending=False)
-min_idx = cnt_grps.nsmallest(n).index
-max_idx = cnt_grps.nlargest(n).index
-plt.plot(cnt_grps.index, cnt_grps.values, '.')
+df = pd.read_csv(f"/ssb/stamme01/data811/NACE/data_fasttext/data_preprocessed.csv")
+n=5
 
-# Plot the lowest and highest dots in red
-plt.plot(min_idx, cnt_grps.loc[min_idx].values, '.', color='red', markersize=8, label="Lowest")
-plt.plot(max_idx, cnt_grps.loc[max_idx].values, '.', color='red', markersize=8, label="Highest")
+hier = ["section", "division", "group", "class", "sn2025_1"]
+for i in range(len(hier)):
+        node = hier[i]
+        
+        div_dist = df[node].value_counts()
+        min_idx = div_dist.nsmallest(n).index
+        max_idx = div_dist.nlargest(n).index
+    
+        df_min = div_dist.nsmallest(n).reset_index()
+        df_max = div_dist.nlargest(n).reset_index()
+    
+        df_min.columns = ['sn', 'nr of instances']
+        df_max.columns = ['sn', 'nr of instances']
+        
+        print(df_min)
+        print(df_max)
+    
+        div_dist = div_dist.sort_index()
+        plt.scatter(div_dist.index, div_dist.values, label="All values")
+        plt.scatter(min_idx, div_dist.loc[min_idx], color='red', label="Lowest")
+        plt.scatter(max_idx, div_dist.loc[max_idx], color='green', label="Highest")
+        plt.legend()
+        plt.xlabel(node)
+        plt.title(f"Distribution of {node}")
+        plt.show()
 
-#print(np.array(df_["division"]).astype(int))
-print(cnt_grps)
-
-plt.show()
-
-
-# %%
-df_ = pd.read_csv(f"/ssb/stamme01/data811/NACE/data_fasttext/data_preprocessed.csv")
-
-div_dist = df_.groupby("division")["class"].nunique().sort_values(ascending=False)
-#print(np.array(df_["division"]).astype(int))
-print(div_dist)
-
-plt.plot(div_dist.index, div_dist.values, '.')
-plt.show()
-
-
-# %%
-import seaborn as sns
-from matplotlib.patches import Patch
-
-tr_div_gr = train.groupby("Division")["Group"].nunique().sort_values(ascending=False)
-div_dist = train["Division"].value_counts().reindex(tr_div_gr.index)
-
-# generating colors(one per bar)
-colors = cm.plasma(tr_div_gr.values / tr_div_gr.values.max())
-
-
-plt.figure(figsize=(12, 6))
-plt.bar(div_dist.index, div_dist.values, color=colors)
-plt.yscale("log")
-
-plt.xlabel("Division")
-plt.ylabel("Count")
-plt.title("Distribution of the Division and Number of Hierarchical Splits")
-plt.xticks(rotation=90)
-
-unique_counts = sorted(tr_div_gr.unique())
-count_to_color = {
-    count: cm.plasma(count / tr_div_gr.values.max()) for count in unique_counts
-}
-legend_handles = [
-    Patch(color=count_to_color[count], label=f"{count} groups")
-    for count in unique_counts
-]
-
-plt.legend(
-    handles=legend_handles,
-    title="Number of Groups",
-    bbox_to_anchor=(1.05, 1),
-    loc="upper left",
-)
-
-plt.tight_layout()
-
-
-# %%
-# This plot is the best one in my opinion
-#!!!!!!!!!!!! Not good practice to have 2 y axis!!!!!!!!!!!!!!!!!!!
-
-# Data
-tr_div_gr = train.groupby("Division")["Group"].nunique().sort_values(ascending=False)
-div_dist = train["Division"].value_counts().reindex(tr_div_gr.index)
-
-fig, ax1 = plt.subplots(figsize=(12, 6))
-
-# Bar plot for counts
-ax1.bar(tr_div_gr.index, div_dist.values)
-ax1.set_xlabel("Division")
-ax1.set_ylabel("Number of Groups", color="black")
-ax1.tick_params(axis="y", labelcolor="black")
-plt.title("Count of Groups per Division")
-"""
-# secondary y-axis to indicate number of groups
-ax2 = ax1.twinx()
-ax2.plot(tr_div_gr.index, tr_div_gr.values, "o-", color="red", label="Number of Groups")
-ax2.set_ylabel("Distinict Number of Groups", color="red")
-ax2.tick_params(axis="y", labelcolor="red")
-"""
-plt.tight_layout()
-plt.show()
-
-
-# %%
-# Data
-tr_div_gr = train.groupby("Group")["Class"].nunique().sort_values(ascending=False)
-div_dist = train["Group"].value_counts().reindex(tr_div_gr.index)
-
-fig, ax1 = plt.subplots(figsize=(12, 6))
-
-# Bar plot for counts
-ax1.bar(tr_div_gr.index, div_dist.values)
-
-
-# Normalising the plots?
-# plt.yscale('log')
-
-ax1.set_xlabel("Group")
-ax1.set_ylabel("Number of Classes", color="black")
-ax1.tick_params(axis="y", labelcolor="black")
-plt.xticks(rotation=90)
-plt.title("Count of Classes per Groups")
-
-# secondary y-axis to indicate number of groups
-ax2 = ax1.twinx()
-ax2.plot(tr_div_gr.index, tr_div_gr.values, "-o", color="red", label="Number of Groups")
-ax2.set_ylabel("Distinict Number of Classes", color="red")
-ax2.tick_params(axis="y", labelcolor="red")
-# Only integers on y-axis (red)
-from matplotlib.ticker import MaxNLocator
-
-ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
-
-plt.tight_layout()
-plt.show()
-
-# %%
-# This plot is the best one in my opinion
-#!!!!!!!!!!!! Not good practice to have 2 y axis!!!!!!!!!!!!!!!!!!!
-
-
-# Data
-tr_div_gr = train.groupby("Class")["Subclass"].nunique().sort_values(ascending=False)
-div_dist = train["Class"].value_counts().reindex(tr_div_gr.index)
-
-fig, ax1 = plt.subplots(figsize=(12, 6))
-
-# Bar plot for counts
-ax1.bar(tr_div_gr.index, div_dist.values)
-
-
-# Normalising the plots?
-# plt.yscale('log')
-
-ax1.set_xlabel("Classes")
-ax1.set_ylabel("Number of Subclasses", color="black")
-ax1.tick_params(axis="y", labelcolor="black")
-plt.xticks(rotation=90)
-plt.title("Count of Subclasses per Classes")
-
-# secondary y-axis to indicate number of groups
-ax2 = ax1.twinx()
-ax2.plot(tr_div_gr.index, tr_div_gr.values, "-o", color="red", label="Number of Groups")
-ax2.set_ylabel("Distinict Number of Subclasses", color="red")
-ax2.tick_params(axis="y", labelcolor="red")
-# Only integers on y-axis (red)
-from matplotlib.ticker import MaxNLocator
-
-ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
-
-plt.tight_layout()
-plt.show()
-
-# %%
-train.columns
 
 # %% [markdown]
 # Hvilke grupper er det som blir mest oppsplittet? 46, men denne gruppen har ikke størst mengde datapunkter. Gruppe 62 har størst mengde datapunkter, men kun 1 oppsplitting. 85 og 26 har 3 og 2 oppsplittinger i nevnt rekkefølge, men er de gruppene med færrest datapunkter. 
@@ -393,127 +237,29 @@ train.columns
 # Hvilke områder er det som ser vanskelige ut når det kommer til å gi prediksjoner? De som har færrest datapunkter men mer enn 1 oppsplittinger.
 
 # %%
-df_hier_sorted = df_hier.sort_values(by="level", ascending=True, inplace=False)
-df_hier_sorted
+for i in range(len(hier)-1):
+    parent = hier[i]
+    child = hier[i+1]
 
-# %% [markdown]
-# # Visualizing the hierarchy of the NACE07 codes
-
-# %%
-import pydot
-from anytree.exporter import DotExporter
-from IPython.display import Image
-from anytree import Node, RenderTree
-
-# Creating the tree through a dictionary of nodes
-nodes = {}
-roots = []
-
-dummy_root = Node("AllRoots")
-for _, row in df_hier_sorted.iterrows():
-    if row["parentCode"] is np.nan:
-        nodes[row["code"]] = Node(row["code"], parent=dummy_root, alias=row["name"])
-
-        roots.append(nodes[row["code"]])
-    else:
-        nodes[row["code"]] = Node(
-            row["code"], parent=nodes[row["parentCode"]], alias=row["name"]
-        )
-
-roots = sorted(roots, key=lambda r: r.alias)
-
-for i, root in enumerate(roots):
-    # Export to dotfile for each root
-    dot_filename = f"forest_section_{i}.dot"
-    pdf_filename = f"forest_section_{i}.pdf"
-
-    DotExporter(
-        root,
-        nodeattrfunc=lambda node: f'label="{getattr(node, "alias", node.name)}"',
-        edgeattrfunc=lambda parent, child: 'color=gray'
-    ).to_dotfile(dot_filename)
-
-    # Convert dot to pdf using pydot
-    (graph,) = pydot.graph_from_dot_file(dot_filename)
-    graph.write_pdf(pdf_filename)
-
-    # Optionally display in Jupyter/Colab
-    display(Image(pdf_filename))
-
-# %%
-# Er det noen fellestrekk i friteksten i enkelte grupper som kan beskrives?
-
-    DotExporter(
-        root,
-        nodeattrfunc=lambda node: f'label="{getattr(node, "alias", node.name)}"',
-        edgeattrfunc=lambda parent, child: 'color=gray'
-    ).to_dotfile(dot_filename)
-
-    # Convert dot to pdf using pydot
-    (graph,) = pydot.graph_from_dot_file(dot_filename)
-    graph.write_pdf(pdf_filename)
-
-    # Optionally display in Jupyter/Colab
-    display(Image(pdf_filename))
+    cnt_grps = df.groupby(parent)[child].nunique()
+    min_idx = cnt_grps.nsmallest(n).index
+    max_idx = cnt_grps.nlargest(n).index
     
+    df_min = cnt_grps.nsmallest(n).reset_index()
+    df_max = cnt_grps.nlargest(n).reset_index()
     
+    df_min.columns = ['sn', 'nr of groups']
+    df_max.columns = ['sn', 'nr of groups']
     
-
-
-
-
-df_hier_sorted = df_hier.sort_values(by="level", ascending=True, inplace=False)
-
-from anytree import Node, RenderTree
-from anytree.exporter import DotExporter
-
-# Creating the tree through a dictionary of nodes
-nodes = {}
-roots = []
-
-dummy_root = Node("AllRoots")
-for _, row in df_hier_sorted.iterrows():
-    if row["parentCode"] is np.nan:
-        nodes[row["code"]] = Node(row["code"], parent=dummy_root, alias=row["name"])
-
-        roots.append(nodes[row["code"]])
-    else:
-        nodes[row["code"]] = Node(
-            row["code"], parent=nodes[row["parentCode"]], alias=row["name"]
-        )
-
-roots = sorted(roots, key=lambda r: r.alias)
-
-# Printing hierarchy
-"""
-for root in roots:
-    for pre, fill, node in RenderTree(root):
-        print(f"{pre}{node.alias}")
-"""
-
-###### Need to install the graphviz software in the virtual environment
-
-# Exporting tree to Graphviz and render PNG
-# DotExporter(dummy_root).to_picture("/home/stud-msh/stat-master-nace/src/data/forest.png")
-DotExporter(
-    dummy_root,
-    nodeattrfunc=lambda node: f'label="{getattr(node, "alias", node.name)}"',
-).to_dotfile("forest.dot")
-
-import pydot
-
-(graph,) = pydot.graph_from_dot_file("forest.dot")
-graph.write_png("forest.png")
-Image("forest.png")  # displays in Jupyter/Colab
-
-
-DotExporter(dummy_root,
-           nodeattrfunc=lambda node: 'shape=box, style=filled, fillcolor=lightblue' if node.children else 'shape=ellipse, fillcolor=lightgreen',
-           edgeattrfunc=lambda parent, child: 'color=gray').to_picture("forest_hidden_root.png")
-
-
-# %%
-
-# %%
-
-# %%
+    print(df_min)
+    print(df_max)
+    
+    cnt_grps=cnt_grps.sort_index()
+    
+    plt.scatter(cnt_grps.index, cnt_grps.values, label="All values")
+    plt.scatter(min_idx, cnt_grps.loc[min_idx], color='red', label="Lowest")
+    plt.scatter(max_idx, cnt_grps.loc[max_idx], color='green', label="Highest")
+    plt.xlabel(parent)
+    plt.title(f"Count of splits in {parent}")
+    plt.legend()
+    plt.show()

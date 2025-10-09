@@ -24,7 +24,7 @@ def explore_data_transition(df):
     groups_25_07 = count_per_category(df[["SN2007", "SN2025"]],"SN2025") 
 
 
-    # - sammenheng mellom enkeltord og kategori. tf-idf, bow
+    
     
 
     # Number of codes that have changed in SN2025
@@ -61,3 +61,6 @@ def explore_data_transition(df):
 
 
 
+def freq_table(df)
+    # - sammenheng mellom enkeltord og kategori. tf-idf, bow
+    

@@ -1,37 +1,6 @@
 from anytree import Node, RenderTree
 from anytree.exporter import DotExporter
 
-def hier_visual(df:pd.DataFrame):
-    # Er det noen fellestrekk i friteksten i enkelte grupper som kan beskrives?
-
-    df_sorted = df.sort_values(by="level", ascending=True, inplace=False)
-
-    
-    # Creating the tree through a dictionary of nodes
-    nodes = {}
-    roots = []
-
-    dummy_root = Node("AllRoots")
-    for _, row in df_sorted.iterrows():
-        if row["parentCode"] is np.nan:
-            nodes[row["code"]] = Node(row["code"], parent=dummy_root, alias=row["name"])
-
-            roots.append(nodes[row["code"]])
-        else:
-            nodes[row["code"]] = Node(
-                row["code"], parent=nodes[row["parentCode"]], alias=row["name"]
-            )
-
-    roots = sorted(roots, key=lambda r: r.alias)
-
-    # Printing hierarchy
-    
-    for root in roots:
-        for pre, fill, node in RenderTree(root):
-            print(f"{pre}{node.alias}")
-    
-    
-
 def dis_visual(df:pd.DataFrame, hier:list[str], n=1):
     for i in range(len(hier)):
         node = hier[i]
@@ -40,14 +9,18 @@ def dis_visual(df:pd.DataFrame, hier:list[str], n=1):
         min_idx = div_dist.nsmallest(n).index
         max_idx = div_dist.nlargest(n).index
     
-        print(div_dist)
-        plt.plot(div_dist.index, div_dist.values, '.')
-        plt.plot(min_idx, div_dist.loc[min_idx].values, '.', color='red', markersize=8, label="Lowest")
-        plt.plot(max_idx, div_dist.loc[max_idx].values, '.', color='red', markersize=8, label="Highest")
+        div_dist = div_dist.sort_index()
         
+        print(div_dist)
+        plt.scatter(div_dist.index, div_dist.values, label="All values")
+        plt.scatter(min_idx, div_dist.loc[min_idx], color='red', label="Lowest")
+        plt.scatter(max_idx, div_dist.loc[max_idx], color='green', label="Highest")
+        plt.legend()
         plt.xlabel(node)
-        plt.title(f"Distribution of {node} groups")
+        plt.title(f"Distribution of {node}")
         plt.show()
+        
+        
         
 def dis_table(df:pd.DataFrame, hier:list[str], n=5):
     for i in range(len(hier)):
@@ -64,7 +37,6 @@ def dis_table(df:pd.DataFrame, hier:list[str], n=5):
 
     
     
-    
 def group_count_visual(df:pd.DataFrame, hier:list[str], n=1):
     for i in range(len(hier)-1):
         parent = hier[i]
@@ -74,13 +46,15 @@ def group_count_visual(df:pd.DataFrame, hier:list[str], n=1):
         min_idx = cnt_grps.nsmallest(n).index
         max_idx = cnt_grps.nlargest(n).index
         
+        cnt_grps=cnt_grps.sort_index()
+        
         print(cnt_grps)
-        plt.plot(cnt_grps.index, cnt_grps.values, '.')
-        plt.plot(min_idx, cnt_grps.loc[min_idx].values, '.', color='red', markersize=8, label="Lowest")
-        plt.plot(max_idx, cnt_grps.loc[max_idx].values, '.', color='red', markersize=8, label="Highest")
-
+        plt.scatter(cnt_grps.index, cnt_grps.values, label="All values")
+        plt.scatter(min_idx, cnt_grps.loc[min_idx], color='red', label="Lowest")
+        plt.scatter(max_idx, cnt_grps.loc[max_idx], color='green', label="Highest")
         plt.xlabel(parent)
-        plt.title(f"Distribution of {node} groups")
+        plt.title(f"Count of splits in {parent}")
+        plt.legend()
         plt.show()
         
 
