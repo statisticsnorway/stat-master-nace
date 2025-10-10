@@ -1,10 +1,9 @@
-# stat-master--nace
+# stat-master-nace
 
 Automating NACE classification.
 
-Opprettet av:
-Minauio <minashe@uio.no>
+Created by:
+Minauio <minash19@yahoo.com>
 
----
-
-Legg inn beskrivelse av prosjektet her.
+------
+Master’s thesis submitted to the University of Oslo, conducted in collaboration with Statistics Norway (SSB).
