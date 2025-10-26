@@ -7,7 +7,7 @@ import string
 import re
 from bs4 import BeautifulSoup
 
-from config import DATA_PATH, OLD_DATA, TRANSITION_DATA_PATH, HIERARCHY_DATA, RANDOM_STATE, SAVE_PATH
+from src.config import DATA_PATH, OLD_DATA, TRANSITION_DATA_PATH, HIERARCHY_DATA, RANDOM_STATE, SAVE_PATH, HIERARCHY_DATA_PRUNED
 
 
 first_names_menn_df = pd.read_excel("/home/stud-msh/stat-master-nace/data/manneNavn.xlsx")
@@ -39,10 +39,10 @@ def remove_names(text):
 def general_preprocess(text):
     #Further preprocessing
     text = text.lower()  # Lowercase
-    text = re.sub(r'\d+', '', text)  # Remove numbers
-    text = text.translate(str.maketrans('', '', string.punctuation))  # Remove punctuation
-    text = re.sub(r"[^a-zA-Z0-9æøåÆØÅ]", " ", text)  # Remove special characters
-    text = BeautifulSoup(text, "html.parser").get_text()  # Remove HTML tags
+    text = re.sub(r'\d+', '', text)  # Removing numbers
+    text = text.translate(str.maketrans('', '', string.punctuation))  # Removing punctuation
+    text = re.sub(r"[^a-zA-Z0-9æøåÆØÅ]", " ", text)  # Removing special characters
+    text = BeautifulSoup(text, "html.parser").get_text()  # Removing HTML tags
     return text
 
 def column_subset(df):
@@ -57,7 +57,7 @@ def cleaning_df(df:pd.DataFrame) -> pd.DataFrame:
         df = df.replace(
             to_replace="* Har ingen korrespondanse i SN2007", 
             value=np.nan)
-        
+           
     if set(["tekst", "navn", "sn2025_1"]).issubset(set(df.columns)):
         df = df[df.groupby("sn2025_1")["navn"].transform("count") >20]
         df = df[df['sn2025_1']!='00.000']
@@ -92,13 +92,65 @@ def derive_hier(df: pd.DataFrame, subclass_col:str, section_map):
     return df
 
 
+def prune_tree(df, cols=["section", "division", "group", "class", "sn2025_1"]):
+    df = df.copy()
+
+    if cols==None:
+        # pruning for level 5
+        mask_lvl5 = (df["level"] == 5)
+        mask_remove_lvl5 = df.loc[mask_lvl5, "code"].str.contains(r"\.\d*0+$", na=False)
+        df.loc[mask_lvl5 & mask_remove_lvl5, "code"] = None
+
+        # pruning for deeper levels
+        levels = sorted(df["level"].unique(), reverse=True)[:-1]
+        for l in levels[1:]:
+            mask_next = (df["level"] == l + 1) & (df["code"].isna())
+            parent_codes = df.loc[mask_next, "parentCode"].unique()
+            if len(parent_codes) > 0:
+                pattern = "|".join([re.escape(p) for p in parent_codes])
+                mask_to_remove = (
+                    (df["level"] == l)
+                    & df["code"].notna()
+                    & df["code"].str.contains(pattern)
+                    & df["code"].str.contains(r"\.\d*0+$", na=False)
+                )
+                df.loc[mask_to_remove, "code"] = None                
+
+    else:
+        for i, col in enumerate(cols[:-1]):
+            next_col = cols[i + 1]
+
+            mask_ends_with_zeros = df[col].astype(str).str.contains(r"\.\d*0+$", na=False)
+
+            # Getting all codes that have at least one child
+            valid_children_prefixes = (
+                df[next_col]
+                .dropna()
+                .astype(str)
+                .apply(lambda x: x.split(".")[0])  # generalize prefix
+            )
+
+            # Keeping rows that have no child with that prefix
+            has_child = df[col].astype(str).isin(valid_children_prefixes)
+
+            # Removing only if ends with zeros and has no child
+            mask_to_remove = mask_ends_with_zeros & ~has_child
+            df.loc[mask_to_remove, col] = None
+
+        # last level
+        last_col = cols[-1]
+        df[last_col] = df[last_col].mask(df[last_col].astype(str).str.contains(r"\.\d*0+$", na=False))
+
+    return df
+
+    
 def run_preprocess():
     # NACE 2007 Hierarchi
     df_hier = pd.read_csv(HIERARCHY_DATA,sep=";",encoding="latin-1")
     # Treningsdata
     df = pd.read_parquet(DATA_PATH)
 
-    # Getting data for old sn-codes, org-nr and text and filtering to only include groups with 10 > datapoints
+    # Getting data for sn-codes, org-nr and text and filtering to only include groups with 10 > datapoints
     df = cleaning_df(df)
     df_sn25 = column_subset(df)
 
@@ -111,37 +163,14 @@ def run_preprocess():
     df_sn25_hier = derive_hier(df=df_sn25, subclass_col='sn2025_1', section_map=map_sec)
     df_sn25_hier.to_csv(f"{SAVE_PATH}/data_fasttext/data_preprocessed.csv", index=False)
     print(df_sn25_hier)
-
-"""
-def load_mapping(filename, folder="mappings"):
-    filepath = os.path.join(folder, filename)
-    with open(filepath, "r", encoding="utf-8") as f:
-        return json.load(f)
-    print("Mapping loaded")
-
-
-def save_mapping(mapping_dict, filename, folder="mappings"):
-    os.makedirs(folder, exist_ok=True)  # creating folder if it doesn't exist
-    filepath = os.path.join(folder, filename)
-
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(mapping_dict, f, ensure_ascii=False, indent=4)
-
-    print(f"Mapping saved to {filepath}")
     
-def mapping(df, key_col, value_col, filename, folder="mappings"):
-    filepath = os.path.join(folder, filename)
-    if os.path.exists(filepath):
-        mp = load_mapping(filename)
-    else:
-        save_mapping(dict(zip(df[key_col], df[value_col])), filename)
-        mp = load_mapping(filename)
-    return mp
-"""
+    df_hier = prune_tree(df_hier, cols=None)
+    df_hier.to_csv(HIERARCHY_DATA_PRUNED, index=False)
+    print(df_hier)
+
 
 
 if __name__=='__main__':
     run_preprocess()
-
 
 

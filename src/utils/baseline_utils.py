@@ -26,7 +26,7 @@ def splitting_dataset(df:pd.DataFrame, statify_column:str, train_file:str, test_
     
     if val_file:
         # test vs validation
-        test, val = train_test_split(temp, test_size=0.5, random_state=42, stratify=temp[statify_column])
+        test, val = train_test_split(temp, test_size=0.5, random_state=seed, stratify=temp[statify_column])
         val["fasttext_format"].to_csv(f"{SAVE_PATH}/{val_file}.txt", index=False, header=False)
         
     else: 
@@ -76,7 +76,7 @@ def output_prep(labels:list[str]):
     labels = np.array(labels)
     return labels
 
-def wrong_preds_df(pred_labels:list[str], true_labels:list[str], input_text:list[str], map_file:str)->pd.DataFrame:
+def wrong_preds_df(pred_labels:list[str], true_labels:list[str], input_text:list[str], mapping:dict)->pd.DataFrame:
     """All the wrong predictions and the true labels are placed in a dataframe"""
     input_text = np.array(input_text)
     
@@ -89,9 +89,9 @@ def wrong_preds_df(pred_labels:list[str], true_labels:list[str], input_text:list
     df_wrong_preds = pd.DataFrame({
         'input text': input_text_wp,
         'wrong predictions':wrong_pred, 
-        'prediction name':[map_file.get(x) for x in wrong_pred], 
+        'prediction name':[mapping.get(x) for x in wrong_pred], 
         'true codes':true_code, 
-        'code name':[map_file.get(x) for x in true_code]})
+        'code name':[mapping.get(x) for x in true_code]})
     df_wrong_preds=df_wrong_preds.drop_duplicates()
     return df_wrong_preds
 

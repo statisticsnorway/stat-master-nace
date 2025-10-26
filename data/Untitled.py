@@ -34,7 +34,7 @@ df_overgang = pd.read_csv(
     "/ssb/stamme01/data811/NACE/data/SN2025-SN2007_23.06.2025.csv", sep=";")
 
 
-# NACE 2007 Hierarchi
+# NACE 2025 Hierarchi
 df_hier = pd.read_csv("/ssb/stamme01/data811/NACE/data/nace25_hierarki.csv", sep=";", encoding="latin-1")
 
 
@@ -65,135 +65,29 @@ groups_25_07 = df[["SN2007", "SN2025"]].groupby("SN2025")
 groups_25_07.count()  # Shape is (45, 1)
 print('done')
 
-# %%
-from faker.providers.person.no_NO import Provider
-import re
-import string
-
-first_names_menn_df = pd.read_excel("/home/stud-msh/stat-master-nace/data/manneNavn.xlsx")
-first_names_kvinner_df = pd.read_excel("/home/stud-msh/stat-master-nace/data/kvinneNavn.xlsx")
-first_names_df = pd.concat([first_names_menn_df, first_names_kvinner_df], ignore_index=True)
-
-last_names_df = pd.read_excel("/home/stud-msh/stat-master-nace/data/etternavn.xlsx")
-
-# Converting to sets
-first_names = set(first_names_df.iloc[:, 0].dropna().str.strip())
-last_names = set(last_names_df.iloc[:, 0].dropna().str.strip())
-
-# Combining into one set
-all_names = first_names.union(last_names)
-
-# Compiling regex 
-pattern = r"\b(" + "|".join(map(re.escape, all_names)) + r")\b"
-name_regex = re.compile(pattern, flags=re.IGNORECASE)
-
-all_names_lower = {n.lower() for n in all_names}
-
-def remove_names(text):
-    # Remove punctuation (replace with spaces)
-    text = text.translate(str.maketrans(string.punctuation, " " * len(string.punctuation)))
-    # Remove names
-    words = [w for w in text.split() if w.lower() not in all_names_lower]
-    return " ".join(words)
-
-def column_subset(df):
-    """Choosing a subset of columns """
-    #return df[["orgnr", "tekst", "navn", "SN2007"]]
-    return df[["tekst", "navn", "sn2025_1"]]
-
-def cleaning_df(df:pd.DataFrame) -> pd.DataFrame:
-    df.copy()
-        
-    if set(["tekst", "navn", "sn2025_1"]).issubset(set(df.columns)):
-        df = df[df.groupby("sn2025_1")["navn"].transform("count") >10]
-        df = df[df['sn2025_1']!='00.000']
-    
-    # Filtering out names
-    df['navn'] = df['navn'].apply(remove_names)
-    
-    return df
-
 
 # %%
-cleaning_df(df_new)['navn']
+from io import StringIO
+import requests
+import csv
+from datetime import date
 
-# %%
-df_overgang.head() #[df_overgang['SN2025']=='00.000']
+#date = "2025-10-26"
+today = date.today().isoformat()
+print(today)
+url = f"https://data.ssb.no/api/klass/v1/classifications/6/codesAt.csv?date={today}&language=en"
 
-# %%
-# ----------- df_overgang datasettet --------------
-
-# 1) Hvordan kategoriene i 2007 er bygd opp, hvordan kan man beskrive strukturen på disse (visualisering)?
-
-df_overgang[df_overgang["SN2007"] == "* Har ingen korrespondanse i SN2007"]
-df_overgang = df_overgang.replace(
-    to_replace="* Har ingen korrespondanse i SN2007", value=np.nan
-)
-df_overgang = df_overgang.astype({"SN2025": str})
-
-
-
-# %%
-# 2) Hvor mange av NACE-kodene som har endret seg i 2025 settet.
-unmatched_07_25 = df_overgang["SN2007"] != df_overgang["SN2025"]
-count_07_25_unmatched = unmatched_07_25.sum()
-
-# Antall nye koder i 2025:
-new = df_overgang["SN2007"].isna()
-
-# Antall endrede koder i 2025:
-edit = df_overgang[
-    df_overgang["SN2007"].notna()
-    & df_overgang["SN2025"].notna()
-    & (df_overgang["SN2007"] != df_overgang["SN2025"])]
-
-
-# Antall koder som ikke finnes lenger i 2025
-deleted = df_overgang["SN2025"].isna()
-
-# Antall koder som har samme kode nummer, men annerledes beskrivelse
-new_desc = df_overgang[
-    (df_overgang["SN2007"] == df_overgang["SN2025"])
-    & (df_overgang["SN2007 Tittel"] != df_overgang["SN2025 Tittel"])]
-
-# %%
-df_overgang.head()
-
-# %%
-print(df_sn07)
-print("number of companies under each NACE category")
-print(counted_groups)
-
-# %%
-print("Number of NACE codes that have changed in the 2025 sett")
-print(count_07_25_unmatched)  # 783 av 1241
-print("new", new.sum())  # new 3
-print("edit", edit.shape[0])  # edit 780
-print("del", deleted.sum())  # del 0
-print("new_desc", new_desc.shape[0])  # new_desc 455
-
-# %% [markdown]
-# ## Fasttext hyperparameter tuning
-# FastText's autotune feature allows you to find automatically the best hyperparameters for your dataset. Hyperparameters are learning rate and epochs.
-# - er fasttext bedre på å predikere tall eller text? 
-# - prøve å bytte ut kodene med navn istedet. kanskje bedre med engelsk navn?
-# - prøve ut fasttext hierarki prediksjoner
-#
-#
+df = pd.read_csv(StringIO(requests.get(url).text), delimiter=',')
+#print(df)
+#print(df.columns)
+df[df['code']=='M']
 
 # %% [markdown]
 # # Visualising the distribution
 
-# %%
-# Hvilke hovedgrupper er størst? 62
-
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 #
-# Checking the distribution of the classes on Subclass category 10.201
-
-# %% [markdown]
-#
-# Checking the distribution of the classes on Division category 10
+# ## distribution of the classes on all levels (not pruned)
 
 # %%
 import numpy as np
@@ -202,7 +96,7 @@ import matplotlib.pyplot as plt
 
 df = pd.read_csv(f"/ssb/stamme01/data811/NACE/data_fasttext/data_preprocessed.csv")
 n=5
-
+##### scatter or bar plots? ###############
 hier = ["section", "division", "group", "class", "sn2025_1"]
 for i in range(len(hier)):
         node = hier[i]
@@ -221,7 +115,10 @@ for i in range(len(hier)):
         print(df_max)
     
         div_dist = div_dist.sort_index()
-        plt.scatter(div_dist.index, div_dist.values, label="All values")
+        if hier[i] == 'section':
+            plt.bar(div_dist.index, div_dist.values, alpha=0.7, label="All values")
+        else:
+            plt.scatter(div_dist.index, div_dist.values, label="All values")
         plt.scatter(min_idx, div_dist.loc[min_idx], color='red', label="Lowest")
         plt.scatter(max_idx, div_dist.loc[max_idx], color='green', label="Highest")
         plt.legend()
@@ -235,6 +132,276 @@ for i in range(len(hier)):
 #
 # Finn måter å visualisere hierarkisk informasjon på en oversiktlig måte. 
 # Hvilke områder er det som ser vanskelige ut når det kommer til å gi prediksjoner? De som har færrest datapunkter men mer enn 1 oppsplittinger.
+
+# %% [markdown]
+# ## Counts of splits for codes on the hier dataset with the hier structure of the codes
+# ### True hierarchy depth by pruning redundant depths
+
+# %%
+
+def prune_tree(df, cols=["section", "division", "group", "class", "sn2025_1"]):
+    df = df.copy()
+
+    if cols==None:
+        # --- Vectorized pruning for level 5 ---
+        mask_lvl5 = (df["level"] == 5)
+        mask_remove_lvl5 = df.loc[mask_lvl5, "code"].str.contains(r"\.\d*0+$", na=False)
+        print(df.loc[mask_lvl5 & mask_remove_lvl5, "code"])
+        df.loc[mask_lvl5 & mask_remove_lvl5, "code"] = None
+
+        # --- Vectorized pruning for deeper levels ---
+        levels = sorted(df["level"].unique(), reverse=True)[:-1]
+        for l in levels[1:]:
+            mask_next = (df["level"] == l + 1) & (df["code"].isna())
+            parent_codes = df.loc[mask_next, "parentCode"].unique()
+            if len(parent_codes) > 0:
+                pattern = "|".join([re.escape(p) for p in parent_codes])
+                mask_to_remove = (
+                    (df["level"] == l)
+                    & df["code"].notna()
+                    & df["code"].str.contains(pattern)
+                    & df["code"].str.contains(r"\.\d*0+$", na=False)
+                )
+                #print(df.loc[mask_to_remove, "code"])
+                df.loc[mask_to_remove, "code"] = None                
+
+    else:
+        # --- Go through each level except the last ---
+        for i, col in enumerate(cols[:-1]):
+            next_col = cols[i + 1]
+
+            # Identify which codes end with zeros
+            mask_ends_with_zeros = df[col].astype(str).str.contains(r"\.\d*0+$", na=False)
+
+            # Get all codes that have at least one child
+            valid_children_prefixes = (
+                df[next_col]
+                .dropna()
+                .astype(str)
+                .apply(lambda x: x.split(".")[0])  # generalize prefix
+            )
+
+            # Keep rows that have no child with that prefix
+            has_child = df[col].astype(str).isin(valid_children_prefixes)
+
+            # Remove only if ends with zeros AND has no child
+            mask_to_remove = mask_ends_with_zeros & ~has_child
+            df.loc[mask_to_remove, col] = None
+
+        # --- Handle last level ---
+        last_col = cols[-1]
+        df[last_col] = df[last_col].mask(df[last_col].astype(str).str.contains(r"\.\d*0+$", na=False))
+
+    return df
+
+
+
+
+
+# %%
+df_hier = prune_tree(df_hier, cols=None)
+levels = df_hie['level'].unique()
+levels
+#df_hie[(df_hie['level']!=1) & (df_hie['level']!=2) & (df_hie['level']!=3) & (df_hie['level']!=4) & (df_hie['level']!=5)]
+
+# %%
+
+levels = df_hier['level'].unique()
+parents = df_hier['parentCode'].unique()
+n=5
+
+for i in range(len(levels)-1):
+    df_hier_level = df_hier[df_hier['level']==levels[i]]
+    #rint(df_hier_level)
+    
+    child = df_hier_level['code']
+    parent = df_hier_level['parentCode']
+
+    #cnt_grps = df.groupby(parent)[child].nunique()
+    cnt_grps =df_hier_level.groupby(['parentCode'])['code'].nunique()
+    min_idx = cnt_grps.nsmallest(n).index
+    max_idx = cnt_grps.nlargest(n).index
+    
+    df_min = cnt_grps.nsmallest(n).reset_index()
+    df_max = cnt_grps.nlargest(n).reset_index()
+    
+    df_min.columns = ['sn', 'nr of groups']
+    df_max.columns = ['sn', 'nr of groups']
+    
+    print(df_min)
+    print(df_max)
+    
+    cnt_grps=cnt_grps.sort_index()
+    
+    if levels[i]==2:
+        plt.bar(cnt_grps.index, cnt_grps.values, alpha=0.7, label="All values")
+
+    else:
+        plt.bar(cnt_grps.index.astype(float), cnt_grps.values, alpha=0.7, label="All values")
+    """
+    if hier[i] == 'section':
+            plt.bar(cnt_grps.index, cnt_grps.values, alpha=0.7, label="All values")
+    else:
+        plt.scatter(cnt_grps.index, cnt_grps.values, label="All values")
+    """
+    #plt.scatter(min_idx, cnt_grps.loc[min_idx], color='red', label="Lowest")
+    #plt.scatter(max_idx, cnt_grps.loc[max_idx], color='green', label="Highest")
+    #plt.xlabel(parent)
+    plt.title(f"Count of splits in {levels[i]-1}")
+    #plt.legend()
+    plt.show()
+
+# %% [markdown]
+# Most of the codes stops splitting at group level. So the tree doesnt get deeper than group level of hierarchy, while some very few still split on class level with '85.59' being the one with most splits, i.e. 7 splits. This means that only few codes have deep hierarchies if we consider any level beyound 'group' as deep, thus only those few to be hard to predict for a simple model like fasttext. the '85.59' would be even more challenging since it the many splits may be difficult to distinuish between in such a low level with possibly minor differences. I need to inspect titles of the '85.59' leafs as an example to understand how minor the difference between them are.
+
+# %% [markdown]
+# ### Original data with unpruned depth
+
+# %%
+
+levels = df_hier['level'].unique()
+parents = df_hier['parentCode'].unique()
+n=5
+
+for i in range(len(levels)-1):
+    df_hier_level = df_hier[df_hier['level']==levels[i]]
+    #rint(df_hier_level)
+    
+    child = df_hier_level['code']
+    parent = df_hier_level['parentCode']
+
+    #cnt_grps = df.groupby(parent)[child].nunique()
+    cnt_grps =df_hier_level.groupby(['parentCode'])['code'].nunique()
+    min_idx = cnt_grps.nsmallest(n).index
+    max_idx = cnt_grps.nlargest(n).index
+    
+    df_min = cnt_grps.nsmallest(n).reset_index()
+    df_max = cnt_grps.nlargest(n).reset_index()
+    
+    df_min.columns = ['sn', 'nr of groups']
+    df_max.columns = ['sn', 'nr of groups']
+    
+    print(df_min)
+    print(df_max)
+    
+    cnt_grps=cnt_grps.sort_index()
+    
+    if levels[i]==2:
+        plt.bar(cnt_grps.index, cnt_grps.values, alpha=0.7, label="All values")
+
+    else:
+        plt.bar(cnt_grps.index.astype(float), cnt_grps.values, alpha=0.7, label="All values")
+    """
+    if hier[i] == 'section':
+            plt.bar(cnt_grps.index, cnt_grps.values, alpha=0.7, label="All values")
+    else:
+        plt.scatter(cnt_grps.index, cnt_grps.values, label="All values")
+    """
+    #plt.scatter(min_idx, cnt_grps.loc[min_idx], color='red', label="Lowest")
+    #plt.scatter(max_idx, cnt_grps.loc[max_idx], color='green', label="Highest")
+    #plt.xlabel(parent)
+    plt.title(f"Count of splits in {levels[i]}")
+    #plt.legend()
+    plt.show()
+
+# %% [markdown]
+# ## Distribution of classes on pruned hierarchy of company dataset
+
+# %%
+df = pd.read_csv(f"/ssb/stamme01/data811/NACE/data_fasttext/data_preprocessed.csv", dtype={'division':str, 'group':str, 'class':str, 'sn2025_1':str})
+df.info()
+
+# %%
+import re
+def prune_tree(df, cols=["section", "division", "group", "class", "sn2025_1"]):
+    df = df.copy()
+
+    # Going through each level except the last
+    for i, col in enumerate(cols[:-1]):
+        next_col = cols[i + 1]
+        for val in df[col].dropna().unique():
+            # Removing only if it ends with zeros and has no child
+            if re.search(r'\.\d*0+$', val):
+                has_child = df[next_col].astype(str).str.startswith(val).any()
+                if not has_child:
+                    df.loc[df[col] == val, col] = None
+
+    # Handling sn2025_1
+    last_col = cols[-1]
+    df[last_col] = df[last_col].apply(
+        lambda x: None if isinstance(x, str) and re.search(r'\.\d*0+$', x) else x
+    )
+
+    return df
+df = prune_tree(df)
+df.info()
+
+# %%
+levels = df_hier['level'].unique()
+parents = df_hier['parentCode'].unique()
+    
+n=5
+##### scatter or bar plots? ###############
+hier = ["section", "division", "group", "class", "sn2025_1"]
+for i,j in zip(range(len(hier)), range(len(levels))):
+    
+    df_hier_level = df_hier[df_hier['level']==levels[j]]
+    
+    child = df_hier_level['code']
+    parent = df_hier_level['parentCode']
+
+    #cnt_grps = df.groupby(parent)[child].nunique()
+    cnt_grps =df_hier_level.groupby(['parentCode'])['code'].nunique()
+    min_idx_c = cnt_grps.nsmallest(n).index
+    max_idx_c = cnt_grps.nlargest(n).index
+    
+    df_min_c = cnt_grps.nsmallest(n).reset_index()
+    df_max_c = cnt_grps.nlargest(n).reset_index()
+    
+    df_min_c.columns = ['sn', 'nr of groups']
+    df_max_c.columns = ['sn', 'nr of groups']
+    
+    cnt_grps=cnt_grps.sort_index()
+    
+      
+    node = hier[i]
+
+    div_dist = df[node].value_counts()
+    min_idx = div_dist.nsmallest(n).index
+    max_idx = div_dist.nlargest(n).index
+ 
+    df_min = div_dist.nsmallest(n).reset_index()
+    df_max = div_dist.nlargest(n).reset_index()
+
+    df_min.columns = ['sn', 'nr of instances']
+    df_max.columns = ['sn', 'nr of instances']
+
+    
+    div_dist = div_dist.sort_index()
+    highlight_min_vals = [div_dist.get(x, 0) for x in min_idx_c]
+    highlight_max_vals = [div_dist.get(x, 0) for x in max_idx_c]
+    if node == 'section':
+        plt.bar(div_dist.index, div_dist.values, alpha=0.7, label="All values", zorder=1)
+        plt.bar(max_idx_c, highlight_max_vals, color='red',  label=cnt_grps[max_idx_c], zorder=2)
+        plt.bar(min_idx_c, highlight_min_vals, color='green', label=cnt_grps[min_idx_c], zorder=2)
+        plt.legend()
+        
+    else:
+        plt.bar(div_dist.index.astype(float), div_dist.values, alpha=0.7, label="All values", zorder=1)
+        if node != "sn2025_1": 
+            plt.bar(max_idx_c.astype(float), highlight_max_vals, color='red', label=cnt_grps[max_idx_c], zorder=2)            
+            plt.bar(min_idx_c.astype(float), highlight_min_vals, color='green', label=cnt_grps[min_idx_c], zorder=2)
+            plt.legend()
+            
+        else:
+            continue
+
+    plt.xlabel(node)
+    plt.title(f"Distribution of {node}")
+    plt.show()
+
+# %% [markdown]
+# ## Counts of splits for codes on the company dataset
 
 # %%
 for i in range(len(hier)-1):
@@ -256,10 +423,111 @@ for i in range(len(hier)-1):
     
     cnt_grps=cnt_grps.sort_index()
     
-    plt.scatter(cnt_grps.index, cnt_grps.values, label="All values")
+    plt.bar(cnt_grps.index, cnt_grps.values, alpha=0.7, label="All values")
+    """
+    if hier[i] == 'section':
+            plt.bar(cnt_grps.index, cnt_grps.values, alpha=0.7, label="All values")
+    else:
+        plt.scatter(cnt_grps.index, cnt_grps.values, label="All values")
+    """
     plt.scatter(min_idx, cnt_grps.loc[min_idx], color='red', label="Lowest")
     plt.scatter(max_idx, cnt_grps.loc[max_idx], color='green', label="Highest")
     plt.xlabel(parent)
     plt.title(f"Count of splits in {parent}")
     plt.legend()
     plt.show()
+
+# %% [markdown]
+# ## distribution agains count of groups
+
+# %%
+for i in range(1,len(hier)):
+    parent = hier[i]
+    if parent == 'subclass':
+        pass
+    child = hier[i+1]
+
+    cnt_grps = df.groupby(parent)[child].nunique()
+    min_idx_cnt = cnt_grps.nsmallest(n).index
+    max_idx_cnt = cnt_grps.nlargest(n).index
+    
+    #cnt_min = cnt_grps.nsmallest(n).reset_index()
+    cnt_max = cnt_grps.nlargest(n).reset_index()
+    
+    node = hier[i]
+
+    div_dist = df[node].value_counts()
+    min_idx_div = div_dist.nsmallest(n).index
+    max_idx_div = div_dist.nlargest(n).index
+
+    df_min = div_dist.nsmallest(n).reset_index()
+    df_max = div_dist.nlargest(n).reset_index()
+    print(max_idx_cnt)
+    
+    print(cnt_max)
+    
+    plt.scatter(div_dist.values, cnt_grps.values, alpha=0.7)
+    #plt.scatter(div_dist.loc[min_idx_div], cnt_grps.loc[min_idx_div], color='red', label="Lowest distribution")
+    #plt.scatter(div_dist.loc[max_idx_cnt], cnt_grps.loc[max_idx_cnt], color='orange', label="Highest count")
+    plt.ylabel('cnt_grps')
+    plt.xlabel('div_dist')
+    plt.title(f"Data abundance vs hierarchy complexity of {parent}")
+    
+    
+    """
+    # lowest div_dist
+    for idx in min_idx_div:
+        if idx in div_dist.index and idx in cnt_grps.index:
+            plt.text(div_dist.loc[idx], cnt_grps.loc[idx],
+                     f"{idx} ↓", color='red', fontsize=9, fontweight='bold')
+    
+    # highest cnt_grps
+    for idx in max_idx_cnt:
+        if idx in div_dist.index and idx in cnt_grps.index:
+            plt.text(div_dist.loc[idx], cnt_grps.loc[idx],
+                     f"{idx} ↑", color='green', fontsize=9, fontweight='bold')
+    """
+    plt.tight_layout()
+    plt.show()
+
+# %%
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+
+    
+def freq_table(df:pd.DataFrame, input_cols:list[str], hier:str) -> pd.DataFrame:
+    """
+    Tf-idf to understand the freqeunce of each word in the input and which 
+    significantly influences prediction for each class.
+    """
+    label=df[hier]
+    inpt=(df[input_cols].astype(str).agg(' '.join, axis=1)).tolist()   
+    
+    vectorizer = TfidfVectorizer(max_features=5000)
+    vectorizer.fit(inpt)
+    words = np.array(vectorizer.get_feature_names_out())
+    
+    tfidf_means=[]
+    classes = []
+    
+    for l in label.unique():
+        df_label = df[df[hier]== l]
+        tfidf = vectorizer.transform((df_label[input_cols].astype(str).agg(' '.join, axis=1)).tolist())
+        tfidf_mean = tfidf.mean(axis=0).A1 # Along the row
+        tfidf_means.append(tfidf_mean)
+        classes.append(l)
+    
+    tfidf_means_df = pd.DataFrame(tfidf_means, index=classes, columns=vectorizer.get_feature_names_out())
+    return tfidf_means_df
+
+
+
+
+# %%
+
+for hier in hierarchies:
+    tfidf_means_df = freq_table(df=df, input_cols=['tekst','navn'], hier=hier)
+    print(hier)
+    print(tfidf_means_df)
+
+# %%
