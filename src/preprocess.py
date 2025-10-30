@@ -84,10 +84,9 @@ def df_hier_levels(df: pd.DataFrame, column:str)-> dict[str, pd.DataFrame]:
 def derive_hier(df: pd.DataFrame, subclass_col:str, section_map):
     """  ["section", "division", "group", "class"] """
     df = df.copy()
-    codes = df[subclass_col].astype(str).values
-    df["division"] = [c[:2] for c in codes]
-    df["group"]    = [c[:4] for c in codes]
-    df["class"]    = [c[:5] for c in codes]
+    df["division"] = df[subclass_col].str[:2]
+    df["group"]    = df[subclass_col].str[:4]
+    df["class"]    = df[subclass_col].str[:5]
     df["section"] = df["division"].map(section_map)
     return df
 

@@ -24,6 +24,9 @@ import pandas as pd
 from matplotlib.patches import Patch
 from sklearn.model_selection import train_test_split
 import sklearn.metrics as m
+from datetime import date
+from io import StringIO
+import requests
 
 # Treningsdata
 df = pd.read_parquet("/ssb/stamme01/data811/NACE/data/one_to_many.parquet")
@@ -35,7 +38,9 @@ df_overgang = pd.read_csv(
 
 
 # NACE 2025 Hierarchi
-df_hier = pd.read_csv("/ssb/stamme01/data811/NACE/data/nace25_hierarki.csv", sep=";", encoding="latin-1")
+today = date.today().isoformat()
+HIERARCHY_DATA = f"https://data.ssb.no/api/klass/v1/classifications/6/codesAt.csv?date={today}&language=en"
+df_hier = pd.read_csv(StringIO(requests.get(HIERARCHY_DATA).text), delimiter=',')
 
 
 # Hent ut data for gamle nace-koder, org-nr og fritekst.
