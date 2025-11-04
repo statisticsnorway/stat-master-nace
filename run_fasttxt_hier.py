@@ -17,7 +17,7 @@ thread=8
 seed_everything(seed_value)
 
 df = pd.read_csv(f"{SAVE_PATH}/data_fasttext/data_preprocessed.csv", dtype={'division':str, 'group':str, 'class':str, 'sn2025_1':str})
-df_hier = pd.read_csv(StringIO(requests.get(HIERARCHY_DATA).text), delimiter=',')s
+df_hier = pd.read_csv(StringIO(requests.get(HIERARCHY_DATA).text), delimiter=',')
 
 hierarchies = ["section", "division", "group", "class", "sn2025_1"]
 levels = [1, 2, 3, 4, 5]
