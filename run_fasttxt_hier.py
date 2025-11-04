@@ -104,16 +104,16 @@ df_res_test = wrong_preds_df(pred_labels_test, test_labels_arr, test_input_txt, 
 
 # saving the results
 df_res_train.to_csv(f"results/hier_fsttxt_model/hier_df_wrong_res_train.csv", index=False)
-df_results_train.to_csv(f"results/hier_fsttxt_model/hier_metrics_train.csv")
+res_cl_tr.to_csv(f"results/hier_fsttxt_model/hier_metrics_train.csv")
 df_res_test.to_csv(f"results/hier_fsttxt_model/hier_df_wrong_res_test.csv", index=False)
-df_results_test.to_csv(f"results/hier_fsttxt_model/hier_metrics_test.csv")
+res_cl_te.to_csv(f"results/hier_fsttxt_model/hier_metrics_test.csv")
 
 # printing them
 
 print('df_results_train')
-print(df_results_train)
+print(res_cl_tr)
 print('df_results_test')
-print(df_results_test)
+print(res_cl_te)
 print("df_res_train")
 print(df_res_train)
 print("df_res_test")
