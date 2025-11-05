@@ -36,7 +36,7 @@ def metrics(target, pred):
         }
     results['brier score'] = {"score":brier_multi(target, pred)}
 
-    # Convert to DataFrame
+    # Converts to DataFrame
     df_results = pd.DataFrame(results).T  # .T transposes so metrics are rows
     df_results = df_results.set_index(np.array(['macro', 'micro', 'weighted', 'score']))
     df_results.index.name = "average"

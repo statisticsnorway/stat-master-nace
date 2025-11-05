@@ -706,7 +706,8 @@ for i,j in zip(range(len(hier)), range(len(levels))):
     plt.title(f"Distribution of {node}")
     plt.show()
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
+
 # ## Counts of splits for codes on the company dataset
 
 # %%
