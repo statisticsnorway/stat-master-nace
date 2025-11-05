@@ -5,16 +5,32 @@ import json
 import os
 import string
 import re
+import s3fs
+import pandas as pd
 from bs4 import BeautifulSoup
 
-from src.config import DATA_PATH, OLD_DATA, TRANSITION_DATA_PATH, HIERARCHY_DATA, RANDOM_STATE, SAVE_PATH, HIERARCHY_DATA_PRUNED
+
+from config import DATA_PATH, OLD_DATA, TRANSITION_DATA_PATH, HIERARCHY_DATA, RANDOM_STATE, SAVE_PATH, HIERARCHY_DATA_PRUNED
 
 
-first_names_menn_df = pd.read_excel("/home/stud-msh/stat-master-nace/data/manneNavn.xlsx")
-first_names_kvinner_df = pd.read_excel("/home/stud-msh/stat-master-nace/data/kvinneNavn.xlsx")
+S3_ENDPOINT_URL = "https://" + os.environ["AWS_S3_ENDPOINT"]
+fs = s3fs.S3FileSystem(client_kwargs={'endpoint_url': S3_ENDPOINT_URL})
+
+with fs.open(DATA_BR_TRAIN, mode="rb") as file_in:
+    train = pd.read_parquet(file_in)
+
+with fs.open(DATA_BR_TEST, mode="rb") as file_in:
+    test = pd.read_parquet(file_in)
+
+df = pd.concat([train, test], ignore_index=True)
+
+
+
+first_names_menn_df = pd.read_excel(f"data/manneNavn.xlsx")
+first_names_kvinner_df = pd.read_excel(f"data/kvinneNavn.xlsx")
 first_names_df = pd.concat([first_names_menn_df, first_names_kvinner_df], ignore_index=True)
 
-last_names_df = pd.read_excel("/home/stud-msh/stat-master-nace/data/etternavn.xlsx")
+last_names_df = pd.read_excel(f"data/etternavn.xlsx")
 
 # Converting to sets
 first_names = set(first_names_df.iloc[:, 0].dropna().str.strip())
@@ -143,7 +159,7 @@ def prune_tree(df, cols=["section", "division", "group", "class", "sn2025_1"]):
     return df
 
     
-def run_preprocess():
+def run_preprocess(save_folder = save_folder):
     # NACE 2007 Hierarchi
     df_hier = pd.read_csv(HIERARCHY_DATA,sep=";",encoding="latin-1")
     # Treningsdata
@@ -160,7 +176,7 @@ def run_preprocess():
     # turning datasett into hierarkies
     map_sec = dict(zip(df_hier["code"], df_hier["parentCode"]))
     df_sn25_hier = derive_hier(df=df_sn25, subclass_col='sn2025_1', section_map=map_sec)
-    df_sn25_hier.to_csv(f"{SAVE_PATH}/data_fasttext/data_preprocessed.csv", index=False)
+    df_sn25_hier.to_csv(f"/{save_folder}", index=False)
     print(df_sn25_hier)
     
     df_hier = prune_tree(df_hier, cols=None)
@@ -170,6 +186,7 @@ def run_preprocess():
 
 
 if __name__=='__main__':
-    run_preprocess()
+    data_folder='data/'
+    run_preprocess(save_folder)
 
 

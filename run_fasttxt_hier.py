@@ -16,7 +16,9 @@ seed_value=42
 thread=8
 seed_everything(seed_value)
 
-df = pd.read_csv(f"{SAVE_PATH}/data_fasttext/data_preprocessed.csv", dtype={'division':str, 'group':str, 'class':str, 'sn2025_1':str})
+data_folder='data/'
+
+df = pd.read_csv(f"{SAVE_PATH}/data_preprocessed.csv", dtype={'division':str, 'group':str, 'class':str, 'sn2025_1':str})
 df_hier = pd.read_csv(StringIO(requests.get(HIERARCHY_DATA).text), delimiter=',')
 
 hierarchies = ["section", "division", "group", "class", "sn2025_1"]
@@ -33,8 +35,8 @@ input_col = ["tekst", "navn"]
 # train and pred for each hierarchy
 train_, test_, val_ = fasttext_input(
     df=df, columns=["sn2025_1"]+input_col, statify_column="sn2025_1", seed=seed_value,
-train_file=f"data_fasttext/train_hier_fasttext", test_file=f"data_fasttext/test_hier_fasttext",
-val_file=f"data_fasttext/val_hier_fasttext")
+train_file=f"{data_folder}train_hier_fasttext", test_file=f"{data_folder}test_hier_fasttext",
+val_file=f"{data_folder}val_hier_fasttext")
 
 
 train_input_txt, train_labels, train=pred_prep(train_, input_cols=input_col, output_cols=["sn2025_1"])
