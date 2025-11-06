@@ -5,22 +5,16 @@ import json
 import os
 import string
 import re
-import s3fs
-import pandas as pd
 from bs4 import BeautifulSoup
 
 
-from config import DATA_PATH, OLD_DATA, TRANSITION_DATA_PATH, HIERARCHY_DATA, RANDOM_STATE, SAVE_PATH, HIERARCHY_DATA_PRUNED
+from config import DATA_PATH, OLD_DATA, DATA_BR_TEST, DATA_BR_TRAIN, TRANSITION_DATA_PATH, HIERARCHY_DATA, RANDOM_STATE, SAVE_PATH, HIERARCHY_DATA_PRUNED
 
 
-S3_ENDPOINT_URL = "https://" + os.environ["AWS_S3_ENDPOINT"]
-fs = s3fs.S3FileSystem(client_kwargs={'endpoint_url': S3_ENDPOINT_URL})
-
-with fs.open(DATA_BR_TRAIN, mode="rb") as file_in:
-    train = pd.read_parquet(file_in)
-
-with fs.open(DATA_BR_TEST, mode="rb") as file_in:
-    test = pd.read_parquet(file_in)
+#80 percent dataset
+train = pd.read_parquet(DATA_BR_TRAIN)
+#80 percent dataset
+test = pd.read_parquet(DATA_BR_TEST)
 
 df = pd.concat([train, test], ignore_index=True)
 

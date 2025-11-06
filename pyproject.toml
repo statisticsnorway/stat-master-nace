@@ -23,6 +23,7 @@ faker = "^37.8.0"
 bs4 = "^0.0.2"
 fasttext-numpy2 = "^0.10.4"
 ssb-klass-python = "^1.0.2"
+s3fs = "^2025.10.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.1.3"

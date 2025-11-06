@@ -1,14 +1,9 @@
 import os
-#import s3fs
 import pandas as pd
 from datetime import date
 
-S3_ENDPOINT_URL = "https://" + os.environ["AWS_S3_ENDPOINT"]
-fs = s3fs.S3FileSystem(client_kwargs={'endpoint_url': S3_ENDPOINT_URL})
-DATA_BR_TRAIN = "projet-aiml4os-wp10/NorwayData/train_norwaydata.parquet"
-DATA_BR_TEST = "projet-aiml4os-wp10/NorwayData/test_norwaydata.parquet"
-
-    
+DATA_BR_TRAIN = 'https://minio.lab.sspcloud.fr/projet-aiml4os-wp10/NorwayData/train_norwaydata.parquet'
+DATA_BR_TEST = 'https://minio.lab.sspcloud.fr/projet-aiml4os-wp10/NorwayData/test_norwaydata.parquet'
 
 # Treningsdata
 DATA_PATH = ...
