@@ -6,17 +6,10 @@ import os
 import string
 import re
 from bs4 import BeautifulSoup
+from io import StringIO
+import requests
 
-
-from config import DATA_PATH, OLD_DATA, DATA_BR_TEST, DATA_BR_TRAIN, TRANSITION_DATA_PATH, HIERARCHY_DATA, RANDOM_STATE, SAVE_PATH, HIERARCHY_DATA_PRUNED
-
-
-#80 percent dataset
-train = pd.read_parquet(DATA_BR_TRAIN)
-#80 percent dataset
-test = pd.read_parquet(DATA_BR_TEST)
-
-df = pd.concat([train, test], ignore_index=True)
+from config import DATA_BR_TEST, DATA_BR_TRAIN, TRANSITION_DATA_PATH, HIERARCHY_DATA, RANDOM_STATE, SAVE_PATH, HIERARCHY_DATA_PRUNED
 
 
 
@@ -57,8 +50,7 @@ def general_preprocess(text):
 
 def column_subset(df):
     """Choosing a subset of columns """
-    #return df[["orgnr", "tekst", "navn", "SN2007"]]
-    return df[["tekst", "navn", "sn2025_1"]]
+    return df[["company_activity", "company_name", "nace_21_code", "nace_21_description_nb"]]
 
 def cleaning_df(df:pd.DataFrame) -> pd.DataFrame:
     df.copy()
@@ -68,29 +60,29 @@ def cleaning_df(df:pd.DataFrame) -> pd.DataFrame:
             to_replace="* Har ingen korrespondanse i SN2007", 
             value=np.nan)
            
-    if set(["tekst", "navn", "sn2025_1"]).issubset(set(df.columns)):
-        df = df[df.groupby("sn2025_1")["navn"].transform("count") >20]
-        df = df[df['sn2025_1']!='00.000']
+    if set(["company_activity", "company_name", "nace_21_code"]).issubset(set(df.columns)):
+        df = df[df.groupby("nace_21_code")["company_name"].transform("count") >20]
+        df = df[df['nace_21_code']!='00.000']
     
     # general preprocess
-    df['tekst'] = df['tekst'].apply(general_preprocess)
-    df['navn'] = df['navn'].apply(general_preprocess)
+    df.loc[df['company_activity'].notnull(), 'company_activity'] = df.loc[df['company_activity'].notnull(), 'company_activity'].apply(general_preprocess)
+    df['company_name'] = df['company_name'].apply(general_preprocess)
     
     # Filtering out names
-    df['navn'] = df['navn'].apply(remove_names)
+    df['company_name'] = df['company_name'].apply(remove_names)
     return df
 
-
+"""
 def df_hier_levels(df: pd.DataFrame, column:str)-> dict[str, pd.DataFrame]:
-    """Split a DataFrame into multiple DataFrames based on values in a column.
-    Returns them as a dictionary."""
+    "Split a DataFrame into multiple DataFrames based on values in a column.
+    Returns them as a dictionary."
     
     new_dfs = {}
     levels = df[column].unique()
     for i in levels:
         new_dfs[i] = df[df[column] == i]
     return new_dfs
-
+"""
 def derive_hier(df: pd.DataFrame, subclass_col:str, section_map):
     """  ["section", "division", "group", "class"] """
     df = df.copy()
@@ -101,7 +93,7 @@ def derive_hier(df: pd.DataFrame, subclass_col:str, section_map):
     return df
 
 
-def prune_tree(df, cols=["section", "division", "group", "class", "sn2025_1"]):
+def prune_tree(df, cols=["section", "division", "group", "class", "nace_21_code"]):
     df = df.copy()
 
     if cols==None:
@@ -153,25 +145,23 @@ def prune_tree(df, cols=["section", "division", "group", "class", "sn2025_1"]):
     return df
 
     
-def run_preprocess(save_folder = save_folder):
+def run_preprocess(save_folder, df):
     # NACE 2007 Hierarchi
-    df_hier = pd.read_csv(HIERARCHY_DATA,sep=";",encoding="latin-1")
-    # Treningsdata
-    df = pd.read_parquet(DATA_PATH)
+    df_hier = pd.read_csv(StringIO(requests.get(HIERARCHY_DATA).text), delimiter=',')
 
     # Getting data for sn-codes, org-nr and text and filtering to only include groups with 10 > datapoints
     df = cleaning_df(df)
     df_sn25 = column_subset(df)
 
     # splitting the df_hier into multiple DataFrames based on level
-    df_hiers = df_hier_levels(df=df_hier, column='level')
-    df_hier_div = df_hiers[2]
+    #df_hiers = df_hier_levels(df=df_hier, column='level')
+    #df_hier_div = df_hiers[2]
 
     # turning datasett into hierarkies
-    map_sec = dict(zip(df_hier["code"], df_hier["parentCode"]))
-    df_sn25_hier = derive_hier(df=df_sn25, subclass_col='sn2025_1', section_map=map_sec)
-    df_sn25_hier.to_csv(f"/{save_folder}", index=False)
+    map_sec = dict(zip(df_hier[df_hier["level"]==2]["code"], df_hier[df_hier["level"]==2]["parentCode"]))
+    df_sn25_hier = derive_hier(df=df_sn25, subclass_col='nace_21_code', section_map=map_sec)
     print(df_sn25_hier)
+    df_sn25_hier.to_csv(f"{SAVE_PATH}/{save_folder}/data_preprocessed.csv", index=False)
     
     df_hier = prune_tree(df_hier, cols=None)
     df_hier.to_csv(HIERARCHY_DATA_PRUNED, index=False)
@@ -180,7 +170,23 @@ def run_preprocess(save_folder = save_folder):
 
 
 if __name__=='__main__':
+    #80 percent dataset
+    train = pd.read_parquet(DATA_BR_TRAIN)
+    #80 percent dataset
+    test = pd.read_parquet(DATA_BR_TEST)
+
+    df = pd.concat([train, test], ignore_index=True)
+    #df_ = column_subset(df)
+    #for col in df_.columns:
+    #    print(col)
+    #    print(df_[col].unique())
+
+    #print(df_.dropna(how='any'))
+
+    #print(df_[df_.isnull().any(axis=1)])
+
+    #quit()
     data_folder='data/'
-    run_preprocess(save_folder)
+    run_preprocess(save_folder=data_folder, df=df)
 
 
