@@ -4,12 +4,13 @@ import optuna
 import numpy as np
 import pandas as pd
 import os
-import tempfile
+#import tempfile
 import json
+import shutil
+
 
 from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import precision_score, recall_score, f1_score
-from src.config import DATA_PATH, OLD_DATA, TRANSITION_DATA_PATH, HIERARCHY_DATA, RANDOM_STATE, SAVE_PATH
+from src.config import M_F_H
 from src.utils.baseline_utils import output_prep
 import sklearn.metrics as m
 
@@ -104,66 +105,71 @@ def fasttext_train_fn(train_file, best_params, seed, model_file=None, thread=4):
 
 
 # Hierarchical model
-def train_hier_fasttext(df, input_col, label_hiers, best_params, seed, thread=4, save_dir=f"{SAVE_PATH}/models_fasttext_hier/"):
+
+def train_hier_fasttext(df, input_col, label_hiers, best_params, seed, thread=1, save_dir=f"{M_F_H}"):
     models_paths={}
-    temp_dir=tempfile.mkdtemp()
-    
-    # First level
-    sec = label_hiers[0]
-    train_file = f"{SAVE_PATH}/data_fasttext/train_fasttext_{sec}.txt"
-    model_path = os.path.join(save_dir, f"{sec}.bin")
-    model = fasttext.train_supervised(input=train_file, 
-                                            lr=best_params["lr"],
-                                            epoch=best_params["epoch"],
-                                            wordNgrams=best_params["wordNgrams"],
-                                            seed=seed, 
-                                            thread=thread,
-                                            )
-    
-    model.save_model(model_path)
-    models_paths[sec]=model_path
-    del model #freeing RAM
+    models_non_path={}
+    temp_dir = os.path.expanduser("~/HPLT-project/stat-master-nace/data/temp_fastxt")
     
     # deeper levels
     for i in range(1, len(label_hiers)):
         parent_label = label_hiers[i-1]
         current_label = label_hiers[i]
         models_paths[current_label] = {}
+        models_non_path[current_label] = {}
         
         for parent, group_df in df.groupby(parent_label):
+    
             group_df = group_df[input_col + [current_label]].copy()
-            group_df[f"fasttext_format"] = ("__label__" + group_df[[current_label] + input_col].astype(str).agg(' '.join, axis=1))
-  
+            #group_df[f"fasttext_format"] = ("__label__" + group_df[[current_label] + input_col].agg(' '.join, axis=1))
 
+            # Create fasttext format
+            group_df["fasttext_format"] = "__label__" + group_df[[current_label] + input_col].agg(' '.join, axis=1)
+            # Remove extra spaces
+            group_df["fasttext_format"] = group_df["fasttext_format"].str.replace(r'\s+', ' ', regex=True).str.strip()
+        
             print(parent)
             print(current_label)
             print(group_df)
             
             train_path = os.path.join(temp_dir, f"{current_label}_{parent}.txt")
-            group_df[f"fasttext_format"].to_csv(train_path, index=False, header=False)
-            
-            model_path = os.path.join(save_dir, f"{current_label}_{parent}.bin")
+            print('train_path')
+            print(train_path)
 
-            model = fasttext.train_supervised(input=train_path,
-                                              lr=best_params["lr"],
-                                              epoch=best_params["epoch"],
-                                              wordNgrams=best_params["wordNgrams"],
-                                              seed=seed,
-                                              thread=thread)
+            
+            group_df[f"fasttext_format"].to_csv(train_path, index=False, header=False, encoding="utf-8")
+
+            model_path = os.path.join(save_dir, f"{current_label}_{parent}.bin")
+            try:
+                model = fasttext.train_supervised(input=train_path,
+                                                lr=best_params["lr"],
+                                                epoch=best_params["epoch"],
+                                                wordNgrams=best_params["wordNgrams"],
+                                                thread=thread)
+            except:
+                models_non_path[current_label][parent] = 'NaN'
+                print('❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌❌')
+                continue
+
             model.save_model(model_path)
             models_paths[current_label][parent] = model_path
+
             del model   
-            
+
     with open(f'fasttext_hier_model_paths.json', 'w') as f:
         json.dump(models_paths, f, indent=4)
+
+    with open(f'NaN_fasttext_hier_model_paths.json', 'w') as f:
+        json.dump(models_non_path, f, indent=4)
+    
+    #shutil.rmtree(temp_dir)        
     return models_paths
 
 def load_hier_fasttext_models(models_paths):
     models = {}
-
+    
     # First level
-    first_level = list(models_paths.keys())[0]
-    models[first_level] = fasttext.load_model(models_paths[first_level])
+    models['section'] = fasttext.load_model(models_paths['section'])
 
     # Deeper levels
     for level, value in models_paths.items():
@@ -178,66 +184,22 @@ def load_hier_fasttext_models(models_paths):
 
 
 def predict_hier_fasttext(models:dict, text:list[str]):
-    sec = models['section'].predict(text)[0][0].replace("__label__", "")
+    sec = list(np.char.replace(np.ravel(np.array(models['section'].predict(text)[0])), "__label__", ""))
+    #print(sec)   
 
-    div = models['division'][sec].predict(text)[0][0].replace("__label__", "")
+    div = list(np.char.replace(np.ravel(np.array([models['division'][s].predict(t)[0] for s, t in zip(sec, text)])), "__label__", ""))
+    #print(div)
 
-    grp = models['group'][div].predict(text)[0][0].replace("__label__", "")
+    grp = list(np.char.replace(np.ravel(np.array([models['group'][d].predict(t)[0] for d, t in zip(div, text)])), "__label__", ""))
+    #print(grp)
 
-    clas = models['class'][grp].predict(text)[0][0].replace("__label__", "")
+    clas = list(np.char.replace(np.ravel(np.array([models['class'][g].predict(t)[0] for g, t in zip(grp, text)])), "__label__", ""))
+    #print(clas)
 
-    sub = models['subclass'][clas].predict(text)[0][0].replace("__label__", "")
-
+    sub = [models['nace_21_code'][c].predict(t)[0] for c, t in zip(clas, text)]
+    #print(sub)
     return sub
 
-
-def predict_hier_fasttext_lazy(models_paths, text):
-    # ---- Predict section ----
-    section_model = fasttext.load_model(models_paths['section'])
-    print(section_model)
-    print(section_model.predict(text)[0][0])
-    sec = section_model.predict(text)[0][0].replace("__label__", "")
-    del section_model 
-
-    
-    #  division 
-    div_path = models_paths['division'].get(sec)
-    if not div_path or not os.path.exists(div_path):
-        return {"section": sec}
-
-    division_model = fasttext.load_model(div_path)
-    div = division_model.predict(text)[0][0].replace("__label__", "")
-    del division_model
-
-    # group 
-    grp_path = models_paths['group'].get(div)
-    if not grp_path or not os.path.exists(grp_path):
-        return {"section": sec, "division": div}
-
-    group_model = fasttext.load_model(grp_path)
-    grp = group_model.predict(text)[0][0].replace("__label__", "")
-    del group_model
-
-    # class 
-    cls_path = models_paths['class'].get(grp)
-    if not cls_path or not os.path.exists(cls_path):
-        return {"section": sec, "division": div, "group": grp}
-
-    cls_model = fasttext.load_model(cls_path)
-    clas = cls_model.predict(text)[0][0].replace("__label__", "")
-    del cls_model
-
-    # subclass
-    sub_path = models_paths['sn2025_1'].get(clas)
-    if not sub_path or not os.path.exists(sub_path):
-        return {"section": sec, "division": div, "group": grp, "class": clas}
-
-    sub_model = fasttext.load_model(sub_path)
-    sub = sub_model.predict(text)[0][0].replace("__label__", "")
-    print(sub_model)
-    del sub_model
-    
-    return sub
 
 
 

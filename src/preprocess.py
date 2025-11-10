@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from io import StringIO
 import requests
 
-from config import DATA_BR_TEST, DATA_BR_TRAIN, TRANSITION_DATA_PATH, HIERARCHY_DATA, RANDOM_STATE, SAVE_PATH, HIERARCHY_DATA_PRUNED
+from config import DATA_BR_TEST, DATA_BR_TRAIN, TRANSITION_DATA_PATH, HIERARCHY_DATA, HIERARCHY_DATA_PRUNED, DATA
 
 
 
@@ -32,21 +32,36 @@ name_regex = re.compile(pattern, flags=re.IGNORECASE)
 
 all_names_lower = {n.lower() for n in all_names}
 
-def remove_names(text):
-    # Remove punctuation (replace with spaces)
-    text = text.translate(str.maketrans(string.punctuation, " " * len(string.punctuation)))
-    # Remove names
-    words = [w for w in text.split() if w.lower() not in all_names_lower]
-    return " ".join(words)
 
-def general_preprocess(text):
-    #Further preprocessing
-    text = text.lower()  # Lowercase
-    text = re.sub(r'\d+', '', text)  # Removing numbers
-    text = text.translate(str.maketrans('', '', string.punctuation))  # Removing punctuation
-    text = re.sub(r"[^a-zA-Z0-9æøåÆØÅ]", " ", text)  # Removing special characters
-    text = BeautifulSoup(text, "html.parser").get_text()  # Removing HTML tags
-    return text
+def general_preprocess(series):
+    # Convert to string
+    s = series.astype(str)
+    
+    # Removing HTML tags efficiently
+    s = s.apply(lambda x: BeautifulSoup(x, "html.parser").get_text())
+    
+    # Lowercase
+    s = s.str.lower()
+    
+    # Removing numbers
+    s = s.str.replace(r"\d+", "", regex=True)
+    
+    # Removing special characters
+    s = s.str.replace(r"[^\w\sæøåÆØÅ]", " ", regex=True)
+    
+    # Remove names from all_names_lower
+    s = s.apply(lambda x: " ".join([w for w in x.split() if w not in all_names_lower]))
+    
+    # Removing any form of 'nan'
+    s.str.replace(r'\b[Nn][Aa][Nn]?\b', '', regex=True)
+    
+    # Removing extra spaces
+    s = s.str.replace(r"\s+", " ", regex=True).str.strip()
+
+    # Removing punctuation
+    s = s.apply(lambda x: x.translate(str.maketrans(string.punctuation, " " * len(string.punctuation))))
+    
+    return s
 
 def column_subset(df):
     """Choosing a subset of columns """
@@ -65,11 +80,8 @@ def cleaning_df(df:pd.DataFrame) -> pd.DataFrame:
         df = df[df['nace_21_code']!='00.000']
     
     # general preprocess
-    df.loc[df['company_activity'].notnull(), 'company_activity'] = df.loc[df['company_activity'].notnull(), 'company_activity'].apply(general_preprocess)
-    df['company_name'] = df['company_name'].apply(general_preprocess)
-    
-    # Filtering out names
-    df['company_name'] = df['company_name'].apply(remove_names)
+    df['company_activity'] = general_preprocess(df['company_activity'])
+    df['company_name'] = general_preprocess(df['company_name'])
     return df
 
 """
@@ -146,27 +158,36 @@ def prune_tree(df, cols=["section", "division", "group", "class", "nace_21_code"
 
     
 def run_preprocess(save_folder, df):
+    df = df.copy()
     # NACE 2007 Hierarchi
     df_hier = pd.read_csv(StringIO(requests.get(HIERARCHY_DATA).text), delimiter=',')
+    print('reading df')
+    mask = df['company_name'].str.contains('helse', case=False, na=False) & \
+        df['company_name'].str.contains('nongkhai', case=False, na=False)
 
+    print(df.loc[mask, 'company_name'])
+
+
+    #df = df.fillna('')
+    
     # Getting data for sn-codes, org-nr and text and filtering to only include groups with 10 > datapoints
     df = cleaning_df(df)
-    df_sn25 = column_subset(df)
+    print('clean df')
+    print(df[df['company_name'] == 'helse na nongkhai']['company_name'])
 
-    # splitting the df_hier into multiple DataFrames based on level
-    #df_hiers = df_hier_levels(df=df_hier, column='level')
-    #df_hier_div = df_hiers[2]
+    df_sn25 = column_subset(df)
 
     # turning datasett into hierarkies
     map_sec = dict(zip(df_hier[df_hier["level"]==2]["code"], df_hier[df_hier["level"]==2]["parentCode"]))
     df_sn25_hier = derive_hier(df=df_sn25, subclass_col='nace_21_code', section_map=map_sec)
-    print(df_sn25_hier)
-    df_sn25_hier.to_csv(f"{SAVE_PATH}/{save_folder}/data_preprocessed.csv", index=False)
+    df = df.replace(['None'], '', regex=False)
+
+    df_sn25_hier.to_csv(f"{save_folder}data_preprocessed.csv", index=False)
     
     df_hier = prune_tree(df_hier, cols=None)
     df_hier.to_csv(HIERARCHY_DATA_PRUNED, index=False)
-    print(df_hier)
-
+    #print(df_hier)
+    return df_sn25_hier
 
 
 if __name__=='__main__':
@@ -176,17 +197,7 @@ if __name__=='__main__':
     test = pd.read_parquet(DATA_BR_TEST)
 
     df = pd.concat([train, test], ignore_index=True)
-    #df_ = column_subset(df)
-    #for col in df_.columns:
-    #    print(col)
-    #    print(df_[col].unique())
 
-    #print(df_.dropna(how='any'))
-
-    #print(df_[df_.isnull().any(axis=1)])
-
-    #quit()
-    data_folder='data/'
-    run_preprocess(save_folder=data_folder, df=df)
+    df = run_preprocess(save_folder=DATA, df=df)
 
 

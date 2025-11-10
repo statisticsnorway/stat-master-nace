@@ -2,23 +2,23 @@
 import os
 import numpy as np
 import pandas as pd
+import fasttext
 
 from sklearn.model_selection import train_test_split
-from src.config import SAVE_PATH
+from src.config import MODELS_FASTXT
 
 
 
 def fasttext_dataprep(df: pd.DataFrame, columns:list[str])-> pd.DataFrame:
     df = df.copy()
-    df["fasttext_format"] = ("__label__" + df[columns].astype(str).agg(' '.join, axis=1))
+    df[columns] = df[columns].astype(str).replace(r'\b(nan|none|na)\b', '', regex=True)
+    # Create fasttext format
+    df["fasttext_format"] = "__label__" + df[columns].agg(' '.join, axis=1)
+    # Remove extra spaces
+    df["fasttext_format"] = df["fasttext_format"].str.replace(r'\s+', ' ', regex=True).str.strip()
     return df 
 
 def splitting_dataset(df:pd.DataFrame, statify_column:str, train_file:str, test_file:str, seed:int, val_file:str = False)->pd.DataFrame:
-    os.makedirs(os.path.dirname(f"{SAVE_PATH}/{train_file}.txt"), exist_ok=True)
-    os.makedirs(os.path.dirname(f"{SAVE_PATH}/{test_file}.txt"), exist_ok=True)
-    if val_file:
-        os.makedirs(os.path.dirname(f"{SAVE_PATH}/{val_file}.txt"), exist_ok=True)        
-        
         
     # train vs test
     train, temp = train_test_split(df, test_size=0.4, random_state=seed, stratify=df[statify_column])
@@ -27,13 +27,13 @@ def splitting_dataset(df:pd.DataFrame, statify_column:str, train_file:str, test_
     if val_file:
         # test vs validation
         test, val = train_test_split(temp, test_size=0.5, random_state=seed, stratify=temp[statify_column])
-        val["fasttext_format"].to_csv(f"{SAVE_PATH}/{val_file}.txt", index=False, header=False)
+        val["fasttext_format"].to_csv(f"{val_file}.txt", index=False, header=False)
         
     else: 
         test=temp
         
-    train["fasttext_format"].to_csv(f"{SAVE_PATH}/{train_file}.txt", index=False, header=False)
-    test["fasttext_format"].to_csv(f"{SAVE_PATH}/{test_file}.txt", index=False, header=False)
+    train["fasttext_format"].to_csv(f"{train_file}.txt", index=False, header=False)
+    test["fasttext_format"].to_csv(f"{test_file}.txt", index=False, header=False)
     
     return (train, val, test) if val_file else (train, test)
     
@@ -72,8 +72,10 @@ def fasttext_input(df:pd.DataFrame, columns:list[str], statify_column:str, seed:
 
 ### Fasttext result preparation
 def output_prep(labels:list[str]):
-    labels = [l[0].replace('__label__', '') for l in labels]
-    labels = np.array(labels)
+    labels = np.char.replace(np.ravel(np.array(labels)), "__label__", "")
+
+    #labels = [l[0].replace('__label__', '') for l in labels]
+    #labels = np.array(labels)
     return labels
 
 def wrong_preds_df(pred_labels:list[str], true_labels:list[str], input_text:list[str], mapping:dict)->pd.DataFrame:
@@ -97,7 +99,7 @@ def wrong_preds_df(pred_labels:list[str], true_labels:list[str], input_text:list
 
 def hyper_params(model_file):
 
-    model = fasttext.load_model(f"{SAVE_PATH}/model_fasttext/{model_file}.bin")
+    model = fasttext.load_model(f"{MODELS_FASTXT}{model_file}.bin")
     args = model.f.getArgs()
 
     print("lr:", args.lr)

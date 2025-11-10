@@ -7,21 +7,22 @@ from src.metrics import metrics, df_to_table, metrics_levels
 from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.dummy import DummyClassifier
 
-from src.config import DATA_PATH, OLD_DATA, TRANSITION_DATA_PATH, HIERARCHY_DATA, RANDOM_STATE, SAVE_PATH
+from src.config import HIERARCHY_DATA, RANDOM_STATE, DATA, DATA_FASTXT, MODELS_FASTXT
 from src.utils.baseline_utils import fasttext_input, wrong_preds_df, output_prep, pred_prep
-from src.models.baseline import objective_cv, tune_fasttext_cv, fasttext_train_fn#, run_fasttext_model
+from src.models.baseline import tune_fasttext_cv, fasttext_train_fn#, run_fasttext_model
 from src.utils.utils import seed_everything
 
-seed_value=42
+seed_value=RANDOM_STATE
 thread=8
 seed_everything(seed_value)
 res_fold=''
 
-df_sn25_hier = pd.read_csv(f"{SAVE_PATH}/data_fasttext/data_preprocessed.csv", dtype={'division':str, 'group':str, 'class':str, 'sn2025_1':str})
+
+df_sn25_hier = pd.read_csv(f"{DATA}data_preprocessed.csv",  dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
 df_hier = pd.read_csv(StringIO(requests.get(HIERARCHY_DATA).text), delimiter=',')
 
-hierarchies = ['sn2025_1'] #['section', 'division', 'group', 'class', 'sn2025_1']
-levels = [5]#[1,2,3,4,5]
+hierarchies = ['section', 'division', 'group', 'class', 'nace_21_code']
+levels = [1,2,3,4,5]
 hier_metrics_train = {}
 df_wrong_res_hier_train={}
 hier_metrics_test = {}
@@ -30,14 +31,14 @@ df_wrong_res_hier_test={}
 
 # Fasttext classifier on each hierarchy level
 for hier, hier_level in zip(hierarchies, levels):
-    input_colm = ["tekst", "navn"]
+    input_colm = ["company_activity", "company_name"]
     print(f"\n=== Training on hierarchy: {hier} ===")
     
     # train and pred for each hierarchy
     train_, test_, val_ = fasttext_input(
-        df=df_sn25_hier, columns=[hier,"tekst", "navn"], statify_column=hier, seed=seed_value,
-    train_file=f"data_fasttext/train_fasttext_hyptune_{hier}", test_file=f"data_fasttext/test_fasttext_hyptune_{hier}",
-    val_file=f"data_fasttext/val_fasttext_hyptune_{hier}")
+        df=df_sn25_hier, columns=[hier,"company_activity", "company_name"], statify_column=hier, seed=seed_value,
+    train_file=f"{DATA_FASTXT}train_fasttext_hyptune_{hier}", test_file=f"{DATA_FASTXT}test_fasttext_hyptune_{hier}",
+    val_file=f"{DATA_FASTXT}val_fasttext_hyptune_{hier}")
     ################### TODO: remove hyptune_ after finished choosing model
     
     train_input_txt, train_labels, train=pred_prep(train_, input_cols=input_colm, output_cols=[hier])
@@ -56,14 +57,14 @@ for hier, hier_level in zip(hierarchies, levels):
     """
     # hyperparameter tuning with k-fold cv
 
-    best_params = tune_fasttext_cv(train, input_cols=input_colm, seed=seed_value,thread=thread, output_cols=[hier], n_trials=7)
+    best_params = tune_fasttext_cv(train, input_cols=input_colm, seed=seed_value,thread=thread, output_cols=[hier], n_trials=13)
         
 
     with open(f'best_params{hier}.json', 'w') as f:
         json.dump(best_params, f, indent=4)
     
-    model = fasttext_train_fn(train_file=f"{SAVE_PATH}/data_fasttext/train_fasttext_hyptune_{hier}.txt", seed=seed_value, thread=thread,
-                              best_params=best_params, model_file=f"{SAVE_PATH}models_fasttext/model_nace_{hier}.bin") 
+    model = fasttext_train_fn(train_file=f"{DATA_FASTXT}train_fasttext_hyptune_{hier}.txt", seed=seed_value, thread=thread,
+                              best_params=best_params, model_file=f"{MODELS_FASTXT}model_nace_{hier}.bin") 
                     
 
     map_hier = dict(zip(df_hier[df_hier['level'] == hier_level]['code'], 
@@ -103,10 +104,10 @@ for hier, hier_level in zip(hierarchies, levels):
     hier_metrics_test['dummy'] = df_dummy_test    
     
     # hier metrics for subclass
-    if hier == "sn2025_1":
+    if hier == "nace_21_code":
         res_cl_tr, res_gro_tr, res_div_tr = metrics_levels(target=train_labels_arr, pred=pred_labels_train)
         res_cl_te, res_gro_te, res_div_te = metrics_levels(target=test_labels_arr, pred=pred_labels_test)
-        
+   
         with PdfPages("results/fasttext_hier_autotune_text_navn/train_results_sub.pdf") as pdf:
             pdf.savefig(df_to_table(res_cl_tr, "Class Results"))
             pdf.savefig(df_to_table(res_gro_tr, "Group Results"))

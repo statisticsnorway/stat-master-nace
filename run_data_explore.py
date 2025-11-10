@@ -2,14 +2,14 @@ import pandas as pd
 from io import StringIO
 import requests
 
-from src.config import DATA_PATH, OLD_DATA, TRANSITION_DATA_PATH, HIERARCHY_DATA, RANDOM_STATE, SAVE_PATH
+from src.config import TRANSITION_DATA_PATH, HIERARCHY_DATA, DATA
 from src.exploration import explore_data_transition, count_per_category, freq_table
 from src.preprocess import prune_tree#,cleaning_df
 
 input_cols = ['tekst', 'navn']
 
 # Treningsdata
-df = pd.read_csv(f"{SAVE_PATH}/data_fasttext/data_preprocessed.csv", dtype={'division':str, 'group':str, 'class':str, 'sn2025_1':str})
+df = pd.read_csv(f"{DATA}data_preprocessed.csv", dtype={'division':str, 'group':str, 'class':str, 'sn2025_1':str})
 
 
 # Overgangssett

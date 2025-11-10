@@ -61,12 +61,12 @@ def metrics_levels(target:list[str], pred:list[str]):
     div_t = np.array([s[:2] for s in target])
     div_p = np.array([s[:2] for s in pred])
     
-    
+    res_sub=metrics(target, pred)
     res_cl=metrics(cl_t, cl_p)
-    res_gro=metrics(cl_t, cl_p)
+    res_gro=metrics(gro_t, gro_p)
     res_div=metrics(div_t, div_p)
     
-    return res_cl, res_gro, res_div
+    return res_sub, res_cl, res_gro, res_div
     
 
 def df_to_table(df, title=""):
