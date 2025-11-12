@@ -4,12 +4,12 @@ import json
 import os
 from io import StringIO
 import requests
-from src.metrics import df_to_table, metrics_levels
+from src.metrics import df_to_table, metrics_levels, wrong_preds_df
 from matplotlib.backends.backend_pdf import PdfPages
 
-from src.config import HIERARCHY_DATA, RANDOM_STATE, DATA
-from src.utils.baseline_utils import fasttext_input, wrong_preds_df, output_prep, pred_prep
-from src.models.baseline import train_hier_fasttext, train_hier_fasttext, predict_hier_fasttext, load_hier_fasttext_models
+from src.config import HIERARCHY_DATA, RANDOM_STATE, DATA, RES_HIER_M, JSON_FILES
+from src.utils.baseline_utils import fasttext_input, output_prep, pred_prep
+from src.models.baseline_hier import train_hier_fasttext, predict_hier_fasttext, load_hier_fasttext_models
 from src.utils.utils import seed_everything
 
 seed_value=RANDOM_STATE
@@ -45,14 +45,14 @@ val_input_txt, val_labels, val=pred_prep(val_, input_cols=input_col, output_cols
 
 # hyperparameter tuning with k-fold cv
 
-if os.path.exists("best_paramssn2025_1.json"):
-    with open("best_paramssn2025_1.json", "r") as f:
+if os.path.exists(f"{JSON_FILES}best_paramssn2025_1.json"):
+    with open(f"{JSON_FILES}best_paramssn2025_1.json", "r") as f:
         best_params = json.load(f)
 else:
     print("Load parameters on run_hier_explore.py script")
 
-if os.path.exists("fasttext_hier_model_paths.json"):
-    with open("fasttext_hier_model_paths.json", "r") as f:
+if os.path.exists(f"{JSON_FILES}fasttext_hier_model_paths.json"):
+    with open(f"{JSON_FILES}fasttext_hier_model_paths.json", "r") as f:
         models_paths = json.load(f)
         model=load_hier_fasttext_models(models_paths)
 else:
@@ -72,30 +72,18 @@ train_labels_arr = np.array(train_labels)
 pred_labels_test = output_prep(pred_labels_test)
 test_labels_arr = np.array(test_labels)
 
-
-"""
-print('pred')
-print(pred_labels_train)
-print('true')
-print(train_labels_arr)
-quit()
-"""
-#metrics
-#df_results_train = metrics(train_labels_arr, pred_labels_train)
-#df_results_test = metrics(test_labels_arr, pred_labels_test)
-
-
 # hier metrics for subclass
 res_sub_tr, res_cl_tr, res_gro_tr, res_div_tr = metrics_levels(target=train_labels_arr, pred=pred_labels_train)
 res_sub_te, res_cl_te, res_gro_te, res_div_te = metrics_levels(target=test_labels_arr, pred=pred_labels_test)
 
-with PdfPages("results/hier_fstxt_model/train_hier_results_sub.pdf") as pdf:
+
+with PdfPages(f"{RES_HIER_M}train_hier_results_sub.pdf") as pdf:
     pdf.savefig(df_to_table(res_sub_tr, "Subclass Results"))
     pdf.savefig(df_to_table(res_cl_tr, "Class Results"))
     pdf.savefig(df_to_table(res_gro_tr, "Group Results"))
     pdf.savefig(df_to_table(res_div_tr, "Division Results"))
 
-with PdfPages("results/hier_fstxt_model/test_hier_results_sub.pdf") as pdf:
+with PdfPages(f"{RES_HIER_M}test_hier_results_sub.pdf") as pdf:
     pdf.savefig(df_to_table(res_sub_te, "Subclass Results"))
     pdf.savefig(df_to_table(res_cl_te, "Class Results"))
     pdf.savefig(df_to_table(res_gro_te, "Group Results"))
@@ -106,10 +94,10 @@ df_res_train = wrong_preds_df(pred_labels_train, train_labels_arr, train_input_t
 df_res_test = wrong_preds_df(pred_labels_test, test_labels_arr, test_input_txt, map_hier)
 
 # saving the results
-df_res_train.to_csv(f"results/hier_fstxt_model/hier_df_wrong_res_train.csv", index=False)
-res_cl_tr.to_csv(f"results/hier_fstxt_model/hier_metrics_train.csv")
-df_res_test.to_csv(f"results/hier_fstxt_model/hier_df_wrong_res_test.csv", index=False)
-res_cl_te.to_csv(f"results/hier_fstxt_model/hier_metrics_test.csv")
+df_res_train.to_csv(f"{RES_HIER_M}hier_df_wrong_res_train.csv", index=False)
+res_cl_tr.to_csv(f"{RES_HIER_M}hier_metrics_train.csv")
+df_res_test.to_csv(f"{RES_HIER_M}hier_df_wrong_res_test.csv", index=False)
+res_cl_te.to_csv(f"{RES_HIER_M}hier_metrics_test.csv")
 
 # printing them
 

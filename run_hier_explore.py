@@ -3,13 +3,13 @@ import pandas as pd
 import numpy as np
 from io import StringIO
 import requests
-from src.metrics import metrics, df_to_table, metrics_levels
+from src.metrics import metrics, df_to_table, metrics_levels, wrong_preds_df
 from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.dummy import DummyClassifier
 
-from src.config import HIERARCHY_DATA, RANDOM_STATE, DATA, DATA_FASTXT, MODELS_FASTXT
-from src.utils.baseline_utils import fasttext_input, wrong_preds_df, output_prep, pred_prep
-from src.models.baseline import tune_fasttext_cv, fasttext_train_fn#, run_fasttext_model
+from src.config import HIERARCHY_DATA, RANDOM_STATE, DATA, DATA_FASTXT, MODELS_FASTXT, JSON_FILES,RES_CV_TEXT,RES_AUTO_TEXT,RES_AUTO_TEXT_NAME
+from src.utils.baseline_utils import fasttext_input, output_prep, pred_prep
+from src.models.baseline import tune_fasttext_cv, fasttext_train_fn
 from src.utils.utils import seed_everything
 
 seed_value=RANDOM_STATE
@@ -60,7 +60,7 @@ for hier, hier_level in zip(hierarchies, levels):
     best_params = tune_fasttext_cv(train, input_cols=input_colm, seed=seed_value,thread=thread, output_cols=[hier], n_trials=13)
         
 
-    with open(f'best_params{hier}.json', 'w') as f:
+    with open(f'{JSON_FILES}best_params{hier}.json', 'w') as f:
         json.dump(best_params, f, indent=4)
     
     model = fasttext_train_fn(train_file=f"{DATA_FASTXT}train_fasttext_hyptune_{hier}.txt", seed=seed_value, thread=thread,
@@ -103,17 +103,19 @@ for hier, hier_level in zip(hierarchies, levels):
     hier_metrics_train['dummy'] = df_dummy_train
     hier_metrics_test['dummy'] = df_dummy_test    
     
+    
+
     # hier metrics for subclass
     if hier == "nace_21_code":
         res_cl_tr, res_gro_tr, res_div_tr = metrics_levels(target=train_labels_arr, pred=pred_labels_train)
         res_cl_te, res_gro_te, res_div_te = metrics_levels(target=test_labels_arr, pred=pred_labels_test)
    
-        with PdfPages("results/fasttext_hier_autotune_text_navn/train_results_sub.pdf") as pdf:
+        with PdfPages(f"{RES_AUTO_TEXT_NAME}train_results_sub.pdf") as pdf:
             pdf.savefig(df_to_table(res_cl_tr, "Class Results"))
             pdf.savefig(df_to_table(res_gro_tr, "Group Results"))
             pdf.savefig(df_to_table(res_div_tr, "Division Results"))
     
-        with PdfPages("results/fasttext_hier_autotune_text_navn/test_results_sub.pdf") as pdf:
+        with PdfPages(f"{RES_AUTO_TEXT_NAME}test_results_sub.pdf") as pdf:
             pdf.savefig(df_to_table(res_cl_te, "Class Results"))
             pdf.savefig(df_to_table(res_gro_te, "Group Results"))
             pdf.savefig(df_to_table(res_div_te, "Division Results"))
@@ -125,10 +127,10 @@ for hier, hier_level in zip(hierarchies, levels):
     df_wrong_res_hier_test[hier] = df_res_test
 
     # saving the results
-    df_res_train.to_csv(f"results/fasttext_hier_autotune_text_navn/{hier}_df_wrong_res_train.csv", index=False)
-    df_results_train.to_csv(f"results/fasttext_hier_autotune_text_navn/{hier}_metrics_train.csv")
-    df_res_test.to_csv(f"results/fasttext_hier_autotune_text_navn/{hier}_df_wrong_res_test.csv", index=False)
-    df_results_test.to_csv(f"results/fasttext_hier_autotune_text_navn/{hier}_metrics_test.csv")
+    df_res_train.to_csv(f"{RES_AUTO_TEXT_NAME}{hier}_df_wrong_res_train.csv", index=False)
+    df_results_train.to_csv(f"{RES_AUTO_TEXT_NAME}{hier}_metrics_train.csv")
+    df_res_test.to_csv(f"{RES_AUTO_TEXT_NAME}{hier}_df_wrong_res_test.csv", index=False)
+    df_results_test.to_csv(f"{RES_AUTO_TEXT_NAME}{hier}_metrics_test.csv")
 
     # printing them
     

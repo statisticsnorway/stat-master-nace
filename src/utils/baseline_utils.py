@@ -69,7 +69,6 @@ def fasttext_input(df:pd.DataFrame, columns:list[str], statify_column:str, seed:
         return train, test
     
 
-
 ### Fasttext result preparation
 def output_prep(labels:list[str]):
     labels = np.char.replace(np.ravel(np.array(labels)), "__label__", "")
@@ -77,25 +76,6 @@ def output_prep(labels:list[str]):
     #labels = [l[0].replace('__label__', '') for l in labels]
     #labels = np.array(labels)
     return labels
-
-def wrong_preds_df(pred_labels:list[str], true_labels:list[str], input_text:list[str], mapping:dict)->pd.DataFrame:
-    """All the wrong predictions and the true labels are placed in a dataframe"""
-    input_text = np.array(input_text)
-    
-    # filtering to only wrong classified values
-    input_text_wp = input_text[pred_labels != true_labels]
-    wrong_pred = pred_labels[pred_labels != true_labels]    
-    true_code = true_labels[pred_labels != true_labels]
-
-    # new DataFrame
-    df_wrong_preds = pd.DataFrame({
-        'input text': input_text_wp,
-        'wrong predictions':wrong_pred, 
-        'prediction name':[mapping.get(x) for x in wrong_pred], 
-        'true codes':true_code, 
-        'code name':[mapping.get(x) for x in true_code]})
-    df_wrong_preds=df_wrong_preds.drop_duplicates()
-    return df_wrong_preds
 
 def hyper_params(model_file):
 

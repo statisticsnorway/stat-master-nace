@@ -67,7 +67,25 @@ def metrics_levels(target:list[str], pred:list[str]):
     res_div=metrics(div_t, div_p)
     
     return res_sub, res_cl, res_gro, res_div
+
+def wrong_preds_df(pred_labels:list[str], true_labels:list[str], input_text:list[str], mapping:dict)->pd.DataFrame:
+    """All the wrong predictions and the true labels are placed in a dataframe"""
+    input_text = np.array(input_text)
     
+    # filtering to only wrong classified values
+    input_text_wp = input_text[pred_labels != true_labels]
+    wrong_pred = pred_labels[pred_labels != true_labels]    
+    true_code = true_labels[pred_labels != true_labels]
+
+    # new DataFrame
+    df_wrong_preds = pd.DataFrame({
+        'input text': input_text_wp,
+        'wrong predictions':wrong_pred, 
+        'prediction name':[mapping.get(x) for x in wrong_pred], 
+        'true codes':true_code, 
+        'code name':[mapping.get(x) for x in true_code]})
+    df_wrong_preds=df_wrong_preds.drop_duplicates()
+    return df_wrong_preds
 
 def df_to_table(df, title=""):
     fig, ax = plt.subplots(figsize=(8, 4))
