@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=thesis
 #SBATCH --account=project_465002259
-#SBATCH --partition=dev-g
-#SBATCH --time=3:00:00
+#SBATCH --partition=small-g
+#SBATCH --time=10:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=7

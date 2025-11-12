@@ -7,17 +7,16 @@ import requests
 from src.metrics import df_to_table, metrics_levels, wrong_preds_df
 from matplotlib.backends.backend_pdf import PdfPages
 
-from src.config import HIERARCHY_DATA, RANDOM_STATE, DATA, RES_HIER_M, JSON_FILES
+from src.config import HIERARCHY_DATA, RANDOM_STATE,THREAD, DATA, RES_HIER_M, JSON_FILES
 from src.utils.baseline_utils import fasttext_input, output_prep, pred_prep
 from src.models.baseline_hier import train_hier_fasttext, predict_hier_fasttext, load_hier_fasttext_models
 from src.utils.utils import seed_everything
 
 seed_value=RANDOM_STATE
-thread=1
+thread=THREAD
 seed_everything(seed_value)
 
 df = pd.read_csv(f"{DATA}data_preprocessed.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
-
 df_hier = pd.read_csv(StringIO(requests.get(HIERARCHY_DATA).text), delimiter=',')
 
 hierarchies = ["section", "division", "group", "class", "nace_21_code"]

@@ -22,20 +22,20 @@ HIERARCHY_DATA_PRUNED = f"{SAVE_PATH}data/nace25_hierarki_pruned.csv"
 
 # Random state
 RANDOM_STATE = 42
-
+THREAD = 1
 
 # folders
 DATA = f"{SAVE_PATH}data/"
 DATA_FASTXT= f"{SAVE_PATH}data/data_fastxt/"
 MODELS_FASTXT = f"{SAVE_PATH}data/models_fastxt/"
-M_F_H= f"{SAVE_PATH}data/models_fasttext_hier/"
+M_F_H= f"{SAVE_PATH}data/models_fastxt_hier/"
 
 # Restults folder 
 ## fasttext
-RES_HIER_M = f"{SAVE_PATH}results/hier_fstxt_model/"
+RES_HIER_M = f"{SAVE_PATH}results/hier_fastxt_model/"
 JSON_FILES=f"{SAVE_PATH}results/fasttext/json_files/"
 RES_AUTO_TEXT_NAME=f"{SAVE_PATH}results/fasttext/autotune_text_navn/"
 RES_AUTO_TEXT=f"{SAVE_PATH}results/fasttext/autotune_text/"
 RES_CV_TEXT=f"{SAVE_PATH}results/fasttext/cv_text/"
-
+RES_CV_TEXT_NAME=f"{SAVE_PATH}results/fasttext/cv_text_navn/"
 

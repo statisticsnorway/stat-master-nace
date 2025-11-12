@@ -7,24 +7,23 @@ import os
 import json
 
 from sklearn.model_selection import StratifiedKFold
-from src.config import M_F_H, DATA, JSON_FILES
 from src.utils.baseline_utils import output_prep
 import sklearn.metrics as m
 
-"""
+
 def run_fasttext_model(model_file, train_file, val_file, seed, thread=None):
     #if os.path.exists(f"{SAVE_PATH}/{model_file}.bin"):
     #    model = fasttext.load_model(f"{SAVE_PATH}/{model_file}.bin")
         
     #else:
     # Skipgram model, finetuned:
-    model = fasttext.train_supervised(input=f"{SAVE_PATH}/{train_file}.txt", 
-                                      autotuneValidationFile=f"{SAVE_PATH}/{val_file}.txt",# Hyperparameter tuning by using "autotuneValidationFile" parameter
+    model = fasttext.train_supervised(input=f"{train_file}.txt", 
+                                      autotuneValidationFile=f"{val_file}.txt",# Hyperparameter tuning by using "autotuneValidationFile" parameter
                                      seed=seed, thread=thread) 
     #Saving the model
-    model.save_model(f"{SAVE_PATH}/{model_file}.bin")
+    model.save_model(f"{model_file}.bin")
     return model
-"""
+
 
 
 def objective_cv(trial, df_train, input_cols, output_cols, seed, thread, n_splits=3):
@@ -83,7 +82,17 @@ def tune_fasttext_cv(df_train, input_cols, output_cols, seed, thread=4, n_trials
     
     # optuna pruning for time saving by halting trials that are unlikely to produce good results
     pruner = optuna.pruners.MedianPruner(n_warmup_steps=5, n_startup_trials=5)
-    study.optimize(lambda trial: objective_cv(trial, df_train, input_cols, output_cols, n_splits, seed, thread), n_trials=n_trials)
+    study.optimize(
+    lambda trial: objective_cv(
+        trial=trial,
+        df_train=df_train,
+        input_cols=input_cols,
+        output_cols=output_cols,
+        seed=seed,
+        thread=thread,
+        n_splits=n_splits
+    ),
+    n_trials=n_trials)
     print("Best hyperparameters:", study.best_params)
     return study.best_params
 
