@@ -13,11 +13,11 @@ from config import DATA_BR_TEST, DATA_BR_TRAIN, TRANSITION_DATA_PATH, HIERARCHY_
 
 
 
-first_names_menn_df = pd.read_excel(f"data/manneNavn.xlsx")
-first_names_kvinner_df = pd.read_excel(f"data/kvinneNavn.xlsx")
+first_names_menn_df = pd.read_excel(f"{DATA}manneNavn.xlsx")
+first_names_kvinner_df = pd.read_excel(f"{DATA}kvinneNavn.xlsx")
 first_names_df = pd.concat([first_names_menn_df, first_names_kvinner_df], ignore_index=True)
 
-last_names_df = pd.read_excel(f"data/etternavn.xlsx")
+last_names_df = pd.read_excel(f"{DATA}etternavn.xlsx")
 
 # Converting to sets
 first_names = set(first_names_df.iloc[:, 0].dropna().str.strip())
@@ -67,7 +67,7 @@ def column_subset(df):
     """Choosing a subset of columns """
     return df[["company_activity", "company_name", "nace_21_code", "nace_21_description_nb"]]
 
-def cleaning_df(df:pd.DataFrame) -> pd.DataFrame:
+def cleaning_df(df:pd.DataFrame, fasttext_data) -> pd.DataFrame:
     df.copy()
     
     if (df == "* Har ingen korrespondanse i SN2007").any().any():
@@ -80,8 +80,9 @@ def cleaning_df(df:pd.DataFrame) -> pd.DataFrame:
         df = df[df['nace_21_code']!='00.000']
     
     # general preprocess
-    df['company_activity'] = general_preprocess(df['company_activity'])
-    df['company_name'] = general_preprocess(df['company_name'])
+    if fasttext_data==True:
+        df['company_activity'] = general_preprocess(df['company_activity'])
+        df['company_name'] = general_preprocess(df['company_name'])
     return df
 
 """
@@ -157,7 +158,7 @@ def prune_tree(df, cols=["section", "division", "group", "class", "nace_21_code"
     return df
 
     
-def run_preprocess(save_folder, df):
+def run_preprocess(save_file, df, fasttext_data=True):
     df = df.copy()
     # NACE 2007 Hierarchi
     df_hier = pd.read_csv(StringIO(requests.get(HIERARCHY_DATA).text), delimiter=',')
@@ -171,9 +172,7 @@ def run_preprocess(save_folder, df):
     #df = df.fillna('')
     
     # Getting data for sn-codes, org-nr and text and filtering to only include groups with 10 > datapoints
-    df = cleaning_df(df)
-    print('clean df')
-    print(df[df['company_name'] == 'helse na nongkhai']['company_name'])
+    df = cleaning_df(df=df, fasttext_data=fasttext_data)
 
     df_sn25 = column_subset(df)
 
@@ -182,11 +181,10 @@ def run_preprocess(save_folder, df):
     df_sn25_hier = derive_hier(df=df_sn25, subclass_col='nace_21_code', section_map=map_sec)
     df = df.replace(['None'], '', regex=False)
 
-    df_sn25_hier.to_csv(f"{save_folder}data_preprocessed.csv", index=False)
+    df_sn25_hier.to_csv(f"{save_file}.csv", index=False)
     
-    df_hier = prune_tree(df_hier, cols=None)
+    df_hier = prune_tree(df=df_hier, cols=None)
     df_hier.to_csv(HIERARCHY_DATA_PRUNED, index=False)
-    #print(df_hier)
     return df_sn25_hier
 
 
@@ -198,6 +196,10 @@ if __name__=='__main__':
 
     df = pd.concat([train, test], ignore_index=True)
 
-    df = run_preprocess(save_folder=DATA, df=df)
+    df_fx = run_preprocess(save_file=f"{DATA}data_preprocessed", df=df)
+
+    df_lm = run_preprocess(save_file=f"{DATA}data_prep_lm", df=df, fasttext_data=False)
+
+    df_lm.head()
 
 

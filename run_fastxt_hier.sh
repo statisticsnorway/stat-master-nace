@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=thesis
 #SBATCH --account=project_465002259
-#SBATCH --partition=dev-g
+#SBATCH --partition=small-g
 #SBATCH --time=1:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1

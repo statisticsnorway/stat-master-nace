@@ -5,7 +5,7 @@ import pandas as pd
 import fasttext
 
 from sklearn.model_selection import train_test_split
-from src.config import MODELS_FASTXT
+from src.config import MODELS_FASTXT, DATA_FX_TR_VAL_TE, DATA_FX_TR_TE, DATA_TR_VAL_TE, DATA_TR_TE
 
 
 
@@ -24,16 +24,26 @@ def splitting_dataset(df:pd.DataFrame, statify_column:str, train_file:str, test_
     train, temp = train_test_split(df, test_size=0.4, random_state=seed, stratify=df[statify_column])
     #### stratified cross validation instead of validation set
     
-    if val_file:
+    if val_file==False:
+        test=temp
+            
+        train["fasttext_format"].to_csv(f"{train_file}.txt", index=False, header=False)
+        pd.read_csv(f"{DATA_TR_TE}train.csv")
+
+        test["fasttext_format"].to_csv(f"{test_file}.txt", index=False, header=False)
+        pd.read_csv(f"{DATA_TR_TE}test.csv")
+    
+    else: 
         # test vs validation
         test, val = train_test_split(temp, test_size=0.5, random_state=seed, stratify=temp[statify_column])
         val["fasttext_format"].to_csv(f"{val_file}.txt", index=False, header=False)
-        
-    else: 
-        test=temp
-        
-    train["fasttext_format"].to_csv(f"{train_file}.txt", index=False, header=False)
-    test["fasttext_format"].to_csv(f"{test_file}.txt", index=False, header=False)
+        pd.read_csv(f"{DATA_TR_VAL_TE}val.csv")
+
+        train["fasttext_format"].to_csv(f"{train_file}.txt", index=False, header=False)
+        pd.read_csv(f"{DATA_TR_VAL_TE}train.csv")
+
+        test["fasttext_format"].to_csv(f"{test_file}.txt", index=False, header=False)
+        pd.read_csv(f"{DAT_TR_VAL_TE}test.csv")
     
     return (train, val, test) if val_file else (train, test)
     

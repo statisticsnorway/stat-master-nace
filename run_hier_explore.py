@@ -8,7 +8,7 @@ from src.metrics import metrics, df_to_table, metrics_levels, wrong_preds_df
 from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.dummy import DummyClassifier
 
-from src.config import HIERARCHY_DATA, RANDOM_STATE, THREAD, DATA, DATA_FASTXT, MODELS_FASTXT, JSON_FILES,RES_CV_TEXT,RES_CV_TEXT_NAME, RES_AUTO_TEXT_NAME,RES_AUTO_TEXT
+from src.config import HIERARCHY_DATA, RANDOM_STATE, THREAD, DATA, DATA_FX_TR_VAL_TE, MODELS_FASTXT, JSON_FILES,RES_CV_TEXT,RES_CV_TEXT_NAME, RES_AUTO_TEXT_NAME,RES_AUTO_TEXT
 from src.utils.baseline_utils import fasttext_input, output_prep, pred_prep
 from src.models.baseline import run_fasttext_model, tune_fasttext_cv, fasttext_train_fn
 from src.utils.utils import seed_everything
@@ -60,8 +60,8 @@ for hier, hier_level in zip(args.hierarchies, args.levels):
     # train and pred for each hierarchy
     train_, test_, val_ = fasttext_input(
         df=df, columns=[hier] + args.input_colm, statify_column=hier, seed=seed_value,
-    train_file=f"{DATA_FASTXT}train_fasttext_hyptune_{hier}", test_file=f"{DATA_FASTXT}test_fasttext_hyptune_{hier}",
-    val_file=f"{DATA_FASTXT}val_fasttext_hyptune_{hier}")
+    train_file=f"{DATA_FX_TR_VAL_TE}train_fasttext_hyptune_{hier}", test_file=f"{DATA_FX_TR_VAL_TE}test_fasttext_hyptune_{hier}",
+    val_file=f"{DATA_FX_TR_VAL_TE}val_fasttext_hyptune_{hier}")
     
     train_input_txt, train_labels, train=pred_prep(train_, input_cols=args.input_colm, output_cols=[hier])
     test_input_txt, test_labels, test=pred_prep(test_, input_cols=args.input_colm, output_cols=[hier])
@@ -70,8 +70,8 @@ for hier, hier_level in zip(args.hierarchies, args.levels):
     # hyperparameter tuning with fasttext
     if args.mode == "autotune":
         model = run_fasttext_model(f"{MODELS_FASTXT}model_fasttext_auto_{hier}", 
-                                f"{DATA_FASTXT}train_fasttext_hyptune_{hier}", 
-                                f"{DATA_FASTXT}val_fasttext_hyptune_{hier}",
+                                f"train_fasttext_hyptune_{hier}", 
+                                f"val_fasttext_hyptune_{hier}",
                                 seed=seed_value, thread=thread)
         
     elif args.mode == "cv":
@@ -81,7 +81,7 @@ for hier, hier_level in zip(args.hierarchies, args.levels):
         with open(f'{JSON_FILES}best_params{hier}.json', 'w') as f:
             json.dump(best_params, f, indent=4)
         
-        model = fasttext_train_fn(train_file=f"{DATA_FASTXT}train_fasttext_hyptune_{hier}.txt", seed=seed_value, thread=thread,
+        model = fasttext_train_fn(train_file=f"{DATA_FX_TR_VAL_TE}train_fasttext_hyptune_{hier}.txt", seed=seed_value, thread=thread,
                                 best_params=best_params, model_file=f"{MODELS_FASTXT}model_nace_{hier}.bin") 
                         
     
@@ -124,15 +124,17 @@ for hier, hier_level in zip(args.hierarchies, args.levels):
 
     # hier metrics for subclass
     if hier == "nace_21_code":
-        res_cl_tr, res_gro_tr, res_div_tr = metrics_levels(target=train_labels_arr, pred=pred_labels_train)
-        res_cl_te, res_gro_te, res_div_te = metrics_levels(target=test_labels_arr, pred=pred_labels_test)
+        res_sub_tr, res_cl_tr, res_gro_tr, res_div_tr = metrics_levels(target=train_labels_arr, pred=pred_labels_train)
+        res_sub_te, res_cl_te, res_gro_te, res_div_te = metrics_levels(target=test_labels_arr, pred=pred_labels_test)
         
         with PdfPages(f"{res}train_results_sub.pdf") as pdf:
+            pdf.savefig(df_to_table(res_sub_tr, "Subclass Results"))
             pdf.savefig(df_to_table(res_cl_tr, "Class Results"))
             pdf.savefig(df_to_table(res_gro_tr, "Group Results"))
             pdf.savefig(df_to_table(res_div_tr, "Division Results"))
     
         with PdfPages(f"{res}test_results_sub.pdf") as pdf:
+            pdf.savefig(df_to_table(res_sub_te, "Subclass Results"))
             pdf.savefig(df_to_table(res_cl_te, "Class Results"))
             pdf.savefig(df_to_table(res_gro_te, "Group Results"))
             pdf.savefig(df_to_table(res_div_te, "Division Results"))

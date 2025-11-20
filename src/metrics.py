@@ -97,3 +97,24 @@ def df_to_table(df, title=""):
              loc='center')
     plt.title(title)
     return fig
+
+
+def metrics_lm(eval_pred):
+    print('eval_pred')
+    print(eval_pred)
+    logits, labels = eval_pred
+    if isinstance(logits, tuple):  # sometimes Trainer returns (logits,)
+        logits = logits[0]
+
+    preds = np.argmax(logits, axis=-1)
+    labels = np.array(labels)
+
+    results = {}
+    for avg in ['macro', 'micro', 'weighted']:
+        results[f"f1_{avg}"] = m.f1_score(labels, preds, zero_division=0, average=avg)
+        results[f"precision_{avg}"] = m.precision_score(labels, preds, zero_division=0, average=avg)
+        results[f"recall_{avg}"] = m.recall_score(labels, preds, zero_division=0, average=avg)
+
+    results["brier_score"] = brier_multi(labels, preds)  # brier_multi returns scalar
+
+    return results

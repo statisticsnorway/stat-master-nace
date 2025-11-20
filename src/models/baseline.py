@@ -29,8 +29,8 @@ def run_fasttext_model(model_file, train_file, val_file, seed, thread=None):
 def objective_cv(trial, df_train, input_cols, output_cols, seed, thread, n_splits=3):
     """Optuna objective using simple k-fold CV on training data."""
     # Suggested hyperparameters
-    lr = trial.suggest_float("lr", 0.01, 0.2, log=True)
-    epoch = trial.suggest_int("epoch", 5, 30)
+    lr = trial.suggest_float("lr", 0.01, 0.15, log=True)
+    epoch = trial.suggest_int("epoch", 5, 25)
     wordNgrams = trial.suggest_int("wordNgrams", 1, 3)
     
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
@@ -45,43 +45,48 @@ def objective_cv(trial, df_train, input_cols, output_cols, seed, thread, n_split
         X_val_fold = [X[i] for i in val_idx]
         y_val_fold = [y[i] for i in val_idx]
         
-        # Temporary training file for FastText
-        temp_train_df = pd.DataFrame({"text": X_train_fold, "label": y_train_fold})
-        temp_train_df["fasttext_format"] = "__label__" + temp_train_df["label"] + " " + temp_train_df["text"]
-        temp_train_file = "temp_train.txt"
-        temp_train_df["fasttext_format"].to_csv(temp_train_file, index=False, header=False)
-        
-        # Training FastText
-        model = fasttext.train_supervised(
-            input=temp_train_file,
-            lr=lr,
-            epoch=epoch,
-            wordNgrams=wordNgrams,
-            verbose=0,
-            thread=thread
-        )
-        
-        # Predicting and evaluating on validation fold
-        pred_labels = output_prep(model.predict(X_val_fold)[0])
-        y_val_fold_arr = np.array(y_val_fold)          
-        f1_macro_score = m.f1_score(y_val_fold_arr, pred_labels, zero_division=np.nan, average='macro')
-        scores.append(f1_macro_score)
-        
-        # Pruning optuna
-        trial.report(f1_macro_score, step=fold_idx)
-        if trial.should_prune():
-            raise optuna.TrialPruned()
-        
-        os.remove(temp_train_file)  # cleanup
+        scratch_dir = os.path.expanduser('~/HPLT-project/')
+        temp_train_file = os.path.join(scratch_dir, f"temp_train_{trial.number}_{fold_idx}.txt")
+        try:
+            # Temporary training file for FastText
+            temp_train_df = pd.DataFrame({"text": X_train_fold, "label": y_train_fold})
+            temp_train_df["fasttext_format"] = "__label__" + temp_train_df["label"] + " " + temp_train_df["text"]
+            temp_train_df["fasttext_format"].to_csv(temp_train_file, index=False, header=False)
+            
+            try:
+                # Training FastText
+                model = fasttext.train_supervised(
+                    input=temp_train_file,
+                    lr=lr,
+                    epoch=epoch,
+                    wordNgrams=wordNgrams,
+                    verbose=0,
+                    thread=thread
+                )
+            except RuntimeError:
+                raise optuna.TrialPruned()                
+            # Predicting and evaluating on validation fold
+            pred_labels = output_prep(model.predict(X_val_fold)[0])
+            y_val_fold_arr = np.array(y_val_fold)          
+            f1_macro_score = m.f1_score(y_val_fold_arr, pred_labels, zero_division=0, average='macro')
+            scores.append(f1_macro_score)
+            
+            # Pruning optuna
+            trial.report(f1_macro_score, step=fold_idx)
+            if trial.should_prune():
+                raise optuna.TrialPruned()
+        finally:
+            if os.path.exists(temp_train_file):
+                os.remove(temp_train_file)  # cleanup
     
     return np.mean(scores)  # average CV score
 
 def tune_fasttext_cv(df_train, input_cols, output_cols, seed, thread=4, n_trials=20, n_splits=3):
     sampler = optuna.samplers.TPESampler(seed=seed)
-    study = optuna.create_study(direction="maximize", sampler=sampler)
-    
     # optuna pruning for time saving by halting trials that are unlikely to produce good results
     pruner = optuna.pruners.MedianPruner(n_warmup_steps=5, n_startup_trials=5)
+    study = optuna.create_study(direction="maximize", sampler=sampler, pruner=pruner)
+    
     study.optimize(
     lambda trial: objective_cv(
         trial=trial,
@@ -90,7 +95,7 @@ def tune_fasttext_cv(df_train, input_cols, output_cols, seed, thread=4, n_trials
         output_cols=output_cols,
         seed=seed,
         thread=thread,
-        n_splits=n_splits
+        n_splits=n_splits,
     ),
     n_trials=n_trials)
     print("Best hyperparameters:", study.best_params)
