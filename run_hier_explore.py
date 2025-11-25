@@ -4,7 +4,8 @@ import pandas as pd
 import numpy as np
 from io import StringIO
 import requests
-from src.metrics import metrics, df_to_table, metrics_levels, wrong_preds_df
+from src.metrics import metrics, df_to_table, metrics_levels
+from src.analyse_preds import wrong_preds_df
 from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.dummy import DummyClassifier
 
@@ -40,7 +41,6 @@ df_hier = pd.read_csv(StringIO(requests.get(HIERARCHY_DATA).text), delimiter=','
 # model running and evaluation
 hier_metrics_train = {}
 df_wrong_res_hier_train={}
-hier_metrics_test = {}
 df_wrong_res_hier_test={}
 
 # results folder
@@ -113,19 +113,15 @@ for hier, hier_level in zip(args.hierarchies, args.levels):
     df_results_test = metrics(test_labels_arr, pred_labels_test)
     # dummy
     df_dummy_train= metrics(train_labels_arr, preds_clf_train)
-    df_dummy_test= metrics(test_labels_arr, preds_clf_test)
-    
-    
-    hier_metrics_train[hier] = df_results_train
-    hier_metrics_test[hier] = df_results_test
-    # dummy
-    hier_metrics_train['dummy'] = df_dummy_train
-    hier_metrics_test['dummy'] = df_dummy_test    
+    df_dummy_test= metrics(test_labels_arr, preds_clf_test)  
 
     # hier metrics for subclass
     if hier == "nace_21_code":
         res_sub_tr, res_cl_tr, res_gro_tr, res_div_tr = metrics_levels(target=train_labels_arr, pred=pred_labels_train)
         res_sub_te, res_cl_te, res_gro_te, res_div_te = metrics_levels(target=test_labels_arr, pred=pred_labels_test)
+        res_sub_tr_dum, res_cl_tr_dum, res_gro_tr_dum, res_div_tr_dum = metrics_levels(target=train_labels_arr, pred=df_dummy_train)
+        res_sub_te_dum, res_cl_te_dum, res_gro_te_dum, res_div_te_dum = metrics_levels(target=test_labels_arr, pred=df_dummy_test)
+
         
         with PdfPages(f"{res}train_results_sub.pdf") as pdf:
             pdf.savefig(df_to_table(res_sub_tr, "Subclass Results"))
@@ -138,12 +134,23 @@ for hier, hier_level in zip(args.hierarchies, args.levels):
             pdf.savefig(df_to_table(res_cl_te, "Class Results"))
             pdf.savefig(df_to_table(res_gro_te, "Group Results"))
             pdf.savefig(df_to_table(res_div_te, "Division Results"))
+
+        with PdfPages(f"{res}dummy_train_results_sub.pdf") as pdf:
+            pdf.savefig(df_to_table(res_sub_tr, "Subclass Results"))
+            pdf.savefig(df_to_table(res_cl_tr, "Class Results"))
+            pdf.savefig(df_to_table(res_gro_tr, "Group Results"))
+            pdf.savefig(df_to_table(res_div_tr, "Division Results"))
+    
+        with PdfPages(f"{res}dummy_test_results_sub.pdf") as pdf:
+            pdf.savefig(df_to_table(res_sub_te, "Subclass Results"))
+            pdf.savefig(df_to_table(res_cl_te, "Class Results"))
+            pdf.savefig(df_to_table(res_gro_te, "Group Results"))
+            pdf.savefig(df_to_table(res_div_te, "Division Results"))
     
      # analyzing wrong predictions for train and test
     df_res_train = wrong_preds_df(pred_labels_train, train_labels_arr, train_input_txt, map_hier)
     df_res_test = wrong_preds_df(pred_labels_test, test_labels_arr, test_input_txt, map_hier)
-    df_wrong_res_hier_train[hier] = df_res_train
-    df_wrong_res_hier_test[hier] = df_res_test
+
 
     # saving the results
     df_res_train.to_csv(f"{res}{hier}_df_wrong_res_train.csv", index=False)
@@ -151,16 +158,11 @@ for hier, hier_level in zip(args.hierarchies, args.levels):
     df_res_test.to_csv(f"{res}{hier}_df_wrong_res_test.csv", index=False)
     df_results_test.to_csv(f"{res}{hier}_metrics_test.csv")
 
-    # printing them
-    
-    print('df_results_train')
-    print(df_results_train)
-    print('df_results_test')
-    print(df_results_test)
-    print("df_res_train")
-    print(df_res_train)
-    print("df_res_test")
-    print(df_res_test)
+    #df_res_train.to_csv(f"{res}dummy_df_wrong_res_train.csv", index=False)
+    df_dummy_train.to_csv(f"{res}dummy_metrics_train.csv")
+    #df_res_test.to_csv(f"{res}dummy_df_wrong_res_test.csv", index=False)
+    df_dummy_test.to_csv(f"{res}dummy_metrics_test.csv")
+
     
 
     

@@ -7,14 +7,14 @@ import pandas as pd
 import os
 import json
 
-from src.config import M_F_H, DATA, JSON_FILES
+from src.config import M_F_H, DATA_FASTXT, JSON_FILES
 import sklearn.metrics as m
 
 
 def train_hier_fasttext(df, input_col, label_hiers, best_params, seed, thread=1, save_dir=f"{M_F_H}"):
     models_paths={}
     models_non_path={}
-    temp_dir = os.path.expanduser(f"{DATA}temp_fastxt")
+    temp_dir = os.path.expanduser(f"{DATA_FASTXT}temp_fastxt")
     
     # deeper levels
     for i in range(1, len(label_hiers)):

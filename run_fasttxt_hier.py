@@ -43,8 +43,8 @@ val_input_txt, val_labels, val=pred_prep(val_, input_cols=input_col, output_cols
 
 # hyperparameter tuning with k-fold cv
 
-if os.path.exists(f"{JSON_FILES}best_paramssn2025_1.json"):
-    with open(f"{JSON_FILES}best_paramssn2025_1.json", "r") as f:
+if os.path.exists(f"{JSON_FILES}best_paramsdivision.json"):
+    with open(f"{JSON_FILES}best_paramsdivision.json", "r") as f:
         best_params = json.load(f)
 else:
     print("Load parameters on run_hier_explore.py script")
