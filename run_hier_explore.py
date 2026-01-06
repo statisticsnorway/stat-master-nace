@@ -5,7 +5,7 @@ import numpy as np
 from io import StringIO
 import requests
 from src.metrics import metrics, df_to_table, metrics_levels
-from src.analyse_preds import wrong_preds_df
+from src.analyse_preds import wrong_preds_df, all_preds_df
 from matplotlib.backends.backend_pdf import PdfPages
 from sklearn.dummy import DummyClassifier
 
@@ -148,8 +148,8 @@ for hier, hier_level in zip(args.hierarchies, args.levels):
             pdf.savefig(df_to_table(res_div_te, "Division Results"))
     
      # analyzing wrong predictions for train and test
-    df_res_train = wrong_preds_df(pred_labels_train, train_labels_arr, train_input_txt, map_hier)
-    df_res_test = wrong_preds_df(pred_labels_test, test_labels_arr, test_input_txt, map_hier)
+    df_res_train = wrong_preds_df(pred_labels=pred_labels_train, true_labels=train_labels_arr, input_text=train_input_txt, mapping=map_hier)[1]
+    df_res_test = wrong_preds_df(pred_labels=pred_labels_test, true_labels=test_labels_arr, input_text=test_input_txt, mapping=map_hier)[1]
 
 
     # saving the results

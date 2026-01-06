@@ -17,6 +17,10 @@ thread=THREAD
 seed_everything(seed_value)
 
 df = pd.read_csv(f"{DATA}data_preprocessed.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
+train_ = pd.read_csv(f"{DATA_FX_TR_VAL_TE}train.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
+test_ = pd.read_csv(f"{DATA_FX_TR_VAL_TE}test.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
+val_ = pd.read_csv(f"{DATA_FX_TR_VAL_TE}val.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
+
 df_hier = pd.read_csv(StringIO(requests.get(HIERARCHY_DATA).text), delimiter=',')
 
 hierarchies = ["section", "division", "group", "class", "nace_21_code"]
@@ -31,9 +35,9 @@ df_wrong_res_hier_test={}
 input_col = ["company_activity", "company_name"]
 
 # train and pred for each hierarchy
-train_, test_, val_ = fasttext_input(
-    df=df, columns=["nace_21_code"]+input_col, statify_column="nace_21_code", seed=seed_value,
-train_file=f"train_hier_fasttext", test_file=f"test_hier_fasttext", val_file=f"val_hier_fasttext")
+#train_, test_, val_ = fasttext_input(
+#    df=df, columns=["nace_21_code"]+input_col, statify_column="nace_21_code", seed=seed_value,
+#train_file=f"train_hier_fasttext", test_file=f"test_hier_fasttext", val_file=f"val_hier_fasttext")
 
 
 train_input_txt, train_labels, train=pred_prep(train_, input_cols=input_col, output_cols=["nace_21_code"])
