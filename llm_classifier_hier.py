@@ -102,22 +102,6 @@ def llm_call(tokenizer, llm, sampling_params, prompts, hierarchy, level, map_cod
     return results
 
 
-"""
-def format_output(id, text, score, gold_score=None):
-    if score is None:
-        return None
-        
-    data_res = {"id": id, "text": text, "score": score}
-
-    if gold_score is not None:
-        data_res["gold score"] = gold_score
-
-    print("----------- OUT PROMPT-----------")
-    print(data_res)
-    return data_res
-"""
-
-
 def sections_df_hier(df:pd.DataFrame):
     sections = df[df['level']==1][['code','name']].astype(str).agg(" - ".join, axis=1).tolist()
     return sections
@@ -186,7 +170,7 @@ def build_parent_child_map(df, hier=['section', 'division', 'group', 'class', 'c
 
     return all_parent_child
 
-def auto_descend(code, hierarchy):
+def auto_descend(parent, hierarchy):
     """
     Walk down hierarchy automatically
     while only ONE child exists.
@@ -198,36 +182,100 @@ def auto_descend(code, hierarchy):
     "class" :"subclass"
     }
     for level in ["section", "division", "group", "class"]:
-        if code in hierarchy[level] and len(hierarchy[level][code]) == 1:
-            code = hierarchy[level][code][0]
+        if parent in hierarchy[level] and len(hierarchy[level][parent]) == 1:
+            parent = hierarchy[level][parent][0]
         else:
-            return code, level
+            return parent, level
     
-    return code, child_level[level]
+    return parent, child_level[level]
+
+
+def companies_at_level(batch_results, level, map_hier_indx):
+    companies = []
+    for idx, res in batch_results.items():
+        if not res:
+            continue
+        deepest = max(res.keys(), key=lambda k: map_hier_indx[k])
+        if deepest == level:
+            companies.append(idx)
+    return companies
+
+
+def prepare_level_prompts(
+    companies,
+    batch_results,
+    hierarchy,
+    current_level,
+    next_level,
+    descriptions
+):
+    prompts = []
+    meta = []
+
+    for company in companies:
+        parent = batch_results[company][current_level]
+
+        if parent not in hierarchy.get(current_level, {}):
+            batch_results[company][next_level] = parent
+            continue
+
+        children = hierarchy[current_level][parent]
+
+        if len(children) == 1:
+            auto_code, auto_level = auto_descend(children[0], hierarchy)
+            batch_results[company][auto_level] = auto_code
+            continue
+
+        prompt = build_prompt(
+            descriptions=[descriptions[company]],
+            level_name=next_level,
+            options=children,
+            parent=parent
+        )
+
+        prompts.append(prompt)
+        meta.append((company, parent, children))
+
+    return prompts, meta
+
+def validate_and_assign(
+    preds,
+    meta,
+    batch_results,
+    next_level,
+    hierarchy
+):
+    for pred, (company, parent, children) in zip(preds, meta):
+        print('pred' , pred)
+        
+        # normalization
+        if isinstance(pred, list):
+            pred = pred[0]
+
+        if pred in children:
+            label = pred
+        else:
+            label = parent
+        final_code, final_level = auto_descend(parent=label, hierarchy=hierarchy)
+        batch_results[company][final_level] = final_code
+    return batch_results
+
 
 
 
 def run_classify_nace(tokenizer, 
-                      llm,
-                      sections,
-                      hierarchy,
-                      map_code_names,
-                      input_file:str=args.val_data_file, 
-                      input:str|list[str] = ["company_activity", "company_name"],
-                      sampling_params=sampling_params, 
-                      batch_size=args.batch_size, 
-                      output_file:str=args.output_file,
-                      ):
-    #results = {}
-    levels = ["section", "division", "group", "class", "subclass"]
-    map_hier_indx = {level: i for i, level in enumerate(levels)}
-
-    parent_level = {
-        "division": "section",
-        "group": "division",
-        "class": "group",
-        "subclass": "class"
-    }
+        llm,
+        sections,
+        hierarchy,
+        map_code_names,
+        map_hier_indx,
+        input_file:str=args.val_data_file, 
+        input:str|list[str] = ["company_activity", "company_name"],
+        sampling_params=sampling_params, 
+        batch_size=args.batch_size, 
+        output_file:str=args.output_file,
+        levels=["section", "division", "group", "class", "subclass"]
+        ):
 
     first_batch = True
 
@@ -259,82 +307,52 @@ def run_classify_nace(tokenizer,
         
         print('################ section peds \n', section_preds)
 
-
-        prompts = []
-        options_list = []
-
         # auto-descend to fill unambiguous levels
         for i, pred in enumerate(section_preds):
             final_code, final_level = auto_descend(pred, hierarchy)
             batch_results[i][final_level] = final_code
-
-        # building prompts for next predictions
-        for i, res in batch_results.items():
-            # Skip if already at deepest level
-            last_known_level = max(res.keys(), key=lambda k: map_hier_indx[k]) if res else None
             
-            if last_known_level == "subclass":
-                continue  # nothing left to predict
+        for i in range(len(levels) - 1):
+            current_level = levels[i]
+            next_level = levels[i + 1]
 
-            # Determine next level to predict
-            if last_known_level is None:
-                next_level = "section"
-                parent = None
-                options = list(hierarchy[next_level].keys())
-            else:
-                last_parent = res[last_known_level]
-                next_level_index = map_hier_indx[last_known_level] + 1
-                next_level = levels[next_level_index]
-
-                # Check that parent exists in hierarchy
-                if last_parent not in hierarchy.get(last_known_level, {}):
-                    print(f"{last_parent} not in hierarchy for level {last_known_level}")
-                    continue
-
-                options = hierarchy[last_known_level][last_parent]
-                if not options:
-                    continue  # nothing to predict
-
-            # auto-descend if one child
-            if len(options) == 1:
-                auto_code, auto_level = auto_descend(options[0], hierarchy)
-                batch_results[i][auto_level] = auto_code
-                continue  # no prompt needed
-
-            # build prompt for the next level
-            buildt_prompt = build_prompt(
-                descriptions=descriptions,
-                level_name=next_level,
-                options=options,
-                parent=last_parent
+            companies = companies_at_level(
+                batch_results, current_level, map_hier_indx
             )
-            prompts.extend(buildt_prompt)
-            options_list.append(options)
 
-            preds = llm_call(tokenizer=tokenizer, 
-                             llm=llm, 
-                             sampling_params=sampling_params,
-                             prompts=prompts,
-                             hierarchy=hierarchy, 
-                             level=next_level, 
-                             map_code_names=map_code_names
-                             )
+            if not companies:
+                continue
+
+            prompts, meta = prepare_level_prompts(
+                companies,
+                batch_results,
+                hierarchy,
+                current_level,
+                next_level,
+                descriptions
+            )
+
+            if not prompts:
+                continue
+
+            preds = llm_call(
+                tokenizer=tokenizer,
+                llm=llm,
+                sampling_params=sampling_params,
+                prompts=prompts,
+                hierarchy=hierarchy,
+                level=next_level,
+                map_code_names=map_code_names
+            )
+
+            batch_results = validate_and_assign(
+                preds,
+                meta,
+                batch_results,
+                next_level,
+                hierarchy
+            )
             
-
-            
-
-            # Validate prediction
-            for pred, option in zip(preds, options_list):
-                if set(pred).issubset(option):
-                    print(f"Invalid prediction at {next_level}: {pred}, using parent {batch_results[i].get(next_level, '')}")
-                    pred = batch_results[i].get(next_level, '')
-
-            #if preds not in options_list:
-            #    print(f"Invalid prediction at {next_level}: {pred}, using parent {batch_results[i].get(next_level, '')}")
-            #    pred = batch_results[i].get(next_level, '')
-
-            final_code = auto_descend(pred, hierarchy)
-            batch_results[i][next_level] = final_code
 
         # Add predictions to batch DataFrame
         for i, res in batch_results.items():
@@ -349,7 +367,6 @@ def run_classify_nace(tokenizer,
         )
         first_batch=False
     return batch
-
 
         
         
