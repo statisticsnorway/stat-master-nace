@@ -4,7 +4,8 @@ import json
 import os
 from io import StringIO
 import requests
-from src.metrics import df_to_table, metrics_levels, wrong_preds_df
+from src.metrics import df_to_table, metrics_levels
+from src.analyse_preds import wrong_preds_df
 from matplotlib.backends.backend_pdf import PdfPages
 
 from src.config import HIERARCHY_DATA, RANDOM_STATE,THREAD, DATA, DATA_FX_TR_TE, DATA_FX_TR_VAL_TE, RES_HIER_M, JSON_FILES
@@ -16,7 +17,7 @@ seed_value=RANDOM_STATE
 thread=THREAD
 seed_everything(seed_value)
 
-df = pd.read_csv(f"{DATA}data_preprocessed.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
+#df = pd.read_csv(f"{DATA}data_preprocessed.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
 train_ = pd.read_csv(f"{DATA_FX_TR_VAL_TE}train.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
 test_ = pd.read_csv(f"{DATA_FX_TR_VAL_TE}test.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
 val_ = pd.read_csv(f"{DATA_FX_TR_VAL_TE}val.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
@@ -58,7 +59,7 @@ if os.path.exists(f"{JSON_FILES}fasttext_hier_model_paths.json"):
         models_paths = json.load(f)
         model=load_hier_fasttext_models(models_paths)
 else:
-    model = train_hier_fasttext(df, input_col, label_hiers=hierarchies, seed=seed_value, best_params=best_params, thread=thread)
+    model = train_hier_fasttext(train, input_col, label_hiers=hierarchies, seed=seed_value, best_params=best_params, thread=thread)
 
 
 map_hier = dict(zip(df_hier[df_hier['level'] == 5]['code'], 
