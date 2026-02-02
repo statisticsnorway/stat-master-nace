@@ -1,5 +1,5 @@
 """
-Script to NACE codes using the LLama model.
+Script to NACE codes using the LLM model.
 """
 
 import pandas as pd
@@ -100,6 +100,8 @@ def run_classify_nace(tokenizer,
             subclasses=subclasses, 
             map_code_names=map_code_names)
 
+        print('########### preds\n',preds)
+
         batch_results = validate_and_assign(
             preds,
             batch_results,
@@ -119,6 +121,7 @@ def run_classify_nace(tokenizer,
             header=not os.path.exists(output_file),
             index=False
         )
+
         
         # update checkpoint
         with open(checkpoint_file, "w") as f:
@@ -127,7 +130,8 @@ def run_classify_nace(tokenizer,
 
 if __name__ == "__main__":
     model = LLM(args.model_name,
-            tensor_parallel_size=args.num_gpus) # bigger models may require more GPUs and higher tensor parallel size
+                #max_model_len=70123,
+                tensor_parallel_size=args.num_gpus) # bigger models may require more GPUs and higher tensor parallel size
 
     tokenizer = model.get_tokenizer()
    

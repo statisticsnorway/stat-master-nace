@@ -1,5 +1,5 @@
 """
-Script to classify NACE codes using the LLama model with hierarchical prompt.
+Script to classify NACE codes using the LLM model with hierarchical prompt.
 """
 import pandas as pd
 import os
@@ -96,7 +96,18 @@ def run_classify_nace(tokenizer,
         
         batch = batch.fillna("")
         """
-    input_df = pd.read_csv(input_file, dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[], index_col=0).fillna("")
+    input_df = pd.read_csv(input_file, 
+                           dtype={'company_activity':str,
+                                  'company_name':str,
+                                  'division':str, 
+                                  'group':str, 
+                                  'class':str, 
+                                  'nace_21_code':str,
+                                  'nace_21_description_nb':str}, 
+                            keep_default_na=False, 
+                            na_values=[], 
+                            index_col=0).fillna("")
+    
     input_df=input_df.iloc[:2]
     for i in range(len(input_df)):
         batch = input_df.iloc[i:i + batch_size].copy()
@@ -195,6 +206,7 @@ def run_classify_nace(tokenizer,
         
 if __name__ == "__main__":
     model = LLM(args.model_name,
+                #max_model_len=70123,
             tensor_parallel_size=args.num_gpus) # bigger models may require more GPUs and higher tensor parallel size
     tokenizer = model.get_tokenizer()
    
