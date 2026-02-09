@@ -12,7 +12,7 @@ from src.parser import parse_args
 from src.config import HIERARCHY_DATA, RES_LM
 from src.metrics import metrics_levels, df_to_table
 from src.utils.llm.hier_llm_util import (
-    llm_call,
+    llm_call_fake,
     sections_df_hier,
     derive_hier_names,
     derive_hier,
@@ -58,6 +58,7 @@ PRED_COLUMNS = ['pred_subclass']
 
 ALL_COLUMNS = BASE_COLUMNS + PRED_COLUMNS
 
+
 def run_classify_nace(tokenizer, 
         llm,
         hierarchy,
@@ -70,6 +71,8 @@ def run_classify_nace(tokenizer,
         levels=["root", "section", "division", "group", "class", "subclass"],
         checkpoint_file="results/checkpoint_hier.json",
         ):
+    """current level is the level that presents possible classes at that level that can be classified. 
+        next_level is the level that is being classified"""
     start_idx=None
     if os.path.exists(checkpoint_file):
         with open(checkpoint_file, "r") as f:
@@ -126,47 +129,7 @@ def run_classify_nace(tokenizer,
             batch.loc[:,'pred_subclass'] = ""
         descriptions=batch[input].astype(str).agg(" ".join, axis=1).to_dict()
         # results per company
-        batch_results = {idx: {"root": "__root__"} for idx in batch.index}
-
-        """
-        # Section
-        section_prompt = build_prompt(
-            descriptions=descriptions,
-            level_name="section",
-            options=sections
-        )
-
-        section_preds = llm_call(
-            tokenizer=tokenizer, 
-            llm=llm, 
-            sampling_params=sampling_params,
-            prompts=section_prompt,
-            hierarchy=hierarchy, 
-            level="section", 
-            map_code_names=map_code_names)
-
-
-        #### including mapping from code to code-name        
-        section_preds = {
-            idx: map_code_names.get(code, code)
-            for idx, code in section_preds.items()
-        }
-
-
-        batch_results = validate_and_assign(
-                    section_preds,
-                    meta,
-                    batch_results,
-                    hierarchy
-                )
-        # auto-descend to fill unambiguous levels
-        for idx in section_preds:
-            pred = section_preds[idx]
-            final_code, final_level = auto_descend(pred, hierarchy)
-            batch_results[idx][final_level] = final_code
-            print('final_code ', final_code)
-
-        """
+        batch_results = {idx: {} for idx in batch.index}
 
         ############### all other levels ###################
 
@@ -174,14 +137,14 @@ def run_classify_nace(tokenizer,
             current_level = levels[i_level]
             next_level = levels[i_level + 1]
 
+            print('current level', current_level)
             companies = companies_at_level(
                 batch_results=batch_results,
                 current_level=current_level,
-                next_level=next_level
+                map_hier_indx=map_hier_indx
             )
-
-            print('current level', current_level)
             print('companies ', companies)
+
             if not companies:
                 continue
 
@@ -203,7 +166,7 @@ def run_classify_nace(tokenizer,
             #### including mapping from code to code-name  
 
 
-            preds = llm_call(
+            preds = llm_call_fake(
                 tokenizer=tokenizer,
                 llm=llm,
                 sampling_params=sampling_params,
@@ -220,6 +183,7 @@ def run_classify_nace(tokenizer,
                 batch_results=batch_results,
                 hierarchy_code=hierarchy,
                 current_level=current_level,
+                next_level=next_level,
             )
       
         print('batch results', batch_results)
@@ -250,14 +214,14 @@ if __name__ == "__main__":
     num_visible = torch.cuda.device_count()
     
 
-    llm_fake=False
+    llm_fake=True
     if llm_fake:
         model=1
         tokenizer=1
         sampling_params=1
     else:
         model =LLM(args.model_name,
-                    max_model_len= 65536,
+                    #max_model_len= 65536,
                     tensor_parallel_size=num_visible) # bigger models may require more GPUs and higher tensor parallel size
         tokenizer =model.get_tokenizer()
         

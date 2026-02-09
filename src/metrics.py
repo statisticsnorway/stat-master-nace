@@ -34,7 +34,7 @@ def metrics(target, pred):
             "recall": m.recall_score(target, pred, zero_division=np.nan, average=avg),
             "precision": m.precision_score(target, pred, zero_division=np.nan, average=avg),
         }
-    results['brier score'] = {"score":brier_multi(target, pred)}
+    results['brier score'] = {"brier score":brier_multi(target, pred)}
 
     # Converts to DataFrame
     df_results = pd.DataFrame(results).T  # .T transposes so metrics are rows

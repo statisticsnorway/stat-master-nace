@@ -89,7 +89,7 @@ def extract_class(output_text, hierarchy_code, current_level, next_level):
     return None
 
 
-def llm_call_fake(tokenizer, llm, sampling_params, prompts, hierarchy_code, level, map_code_names):
+def llm_call_fake(tokenizer, llm, sampling_params, prompts, hierarchy_code, current_level, next_level):
     """
     Fake LLM call that deterministically returns a valid option
     for each prompt, keyed by the original batch index.
@@ -101,11 +101,11 @@ def llm_call_fake(tokenizer, llm, sampling_params, prompts, hierarchy_code, leve
     results = {}
 
     for idx, p in zip(prompt_ids, prompt_texts):
-        options = hierarchy_code[level]
+        options = hierarchy_code[current_level]
 
         # Pick first valid option for reproducibility
         if isinstance(options, dict):
-            results[idx] = list(options.keys())[1]
+            results[idx] = list(options.keys())[0]
         else:
             results[idx] = options[0]
 
@@ -255,18 +255,19 @@ def build_parent_child_map(df, hier=['section', 'division', 'group', 'class', 'c
     all_parent_child['root'] = list(all_parent_child['section'].keys())
     return all_parent_child
 
-def auto_descend(parent, hierarchy_code, current_level):
+def auto_descend(parent, hierarchy_code, next_level):
     """
     Walk down hierarchy automatically
     while only ONE child exists.
     """
     child_level = {
+    "root":"section",
     "section":"division",
     "division": "group",
     "group": "class",
     "class" :"subclass"
     }            
-    level = current_level
+    level = next_level
 
     while level in child_level:
         # no children in this level = stop
@@ -297,21 +298,16 @@ def companies_at_level(batch_results, current_level, map_hier_indx):
     """
     companies = []
     for idx, res in batch_results.items():
-        # section
-        if current_level == "section":                
-            if not res:
-                companies.append(idx)
-            continue
-
+        if current_level == 'root':
+            companies.append(idx)
         # rest of the levels
         if not res:
             continue
 
-        deepest_level_indx = max(res.keys(), key=lambda k: map_hier_indx[k])
-        current_level_indx = map_hier_indx[current_level]
-        if deepest_level_indx == current_level_indx:
-            print('deepest_level_indx ', deepest_level_indx)
-            print('current_level_indx ', current_level_indx)
+        deepest_level = max(res.keys(), key=lambda k: map_hier_indx[k])
+        print('deepest_level_indx ', deepest_level)
+        print('current_level_indx ', current_level)
+        if deepest_level == current_level:
             companies.append(idx)
     return companies
 
@@ -341,7 +337,7 @@ def prepare_level_prompts(
     for company in companies:
 
         # section level
-        if current_level == 'section':
+        if current_level == 'root':
             parent=None
             children = hierarchy_code[current_level]
             selected_descp[company]=descriptions[company]
@@ -386,6 +382,7 @@ def validate_and_assign(
     batch_results,
     hierarchy_code,
     current_level,
+    next_level
 ):
     for idx, pred in preds.items():
 
@@ -404,14 +401,14 @@ def validate_and_assign(
         else:
             label = parent
 
-        if current_level != 'subclass':
+        if current_level != 'class':
             final_code, final_level = auto_descend(
                 parent=label,
                 hierarchy_code=hierarchy_code,
-                current_level=current_level
+                next_level=next_level
             )
         else:
-            final_code, final_level = label, current_level
+            final_code, final_level = label, next_level
 
         if not isinstance(final_level, str):
             raise ValueError(f"Invalid final_level: {final_level}")
