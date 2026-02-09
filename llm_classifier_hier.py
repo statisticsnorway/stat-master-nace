@@ -12,7 +12,7 @@ from src.parser import parse_args
 from src.config import HIERARCHY_DATA, RES_LM
 from src.metrics import metrics_levels, df_to_table
 from src.utils.llm.hier_llm_util import (
-    llm_call_fake,
+    llm_call,
     sections_df_hier,
     derive_hier_names,
     derive_hier,
@@ -166,14 +166,14 @@ def run_classify_nace(tokenizer,
             #### including mapping from code to code-name  
 
 
-            preds = llm_call_fake(
+            preds = llm_call(
                 tokenizer=tokenizer,
                 llm=llm,
                 sampling_params=sampling_params,
                 prompts=prompts,
                 hierarchy_code=hierarchy,
                 current_level=current_level,
-                next_level=next_level,
+                meta=meta,
             )
             print('preds ', preds)
 
@@ -214,7 +214,7 @@ if __name__ == "__main__":
     num_visible = torch.cuda.device_count()
     
 
-    llm_fake=True
+    llm_fake=False
     if llm_fake:
         model=1
         tokenizer=1

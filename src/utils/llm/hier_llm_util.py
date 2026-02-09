@@ -58,7 +58,7 @@ def build_prompt(descriptions, next_level, meta, map_code_name):
     return prompts
 
 
-def extract_class(output_text, hierarchy_code, current_level, next_level):
+def extract_class(output_text, hierarchy_code, current_level, parent):
     " hierarchy is a hierarchy of allowed codes on that level. "
 
     if output_text is None:
@@ -70,14 +70,13 @@ def extract_class(output_text, hierarchy_code, current_level, next_level):
     if output_text.startswith(assistant_prefix):
         output_text = output_text[len(assistant_prefix):]
 
-    escaped_codes = [re.escape(code) for code in hierarchy_code[next_level]]
-    pattern = r"\b(" + "|".join(escaped_codes) + r")\b"
-
-    # extract matches    ############################### this part #########################33
+    # extract matches   
     if output_text in hierarchy_code[current_level]:
         return output_text
   
     #regex extraction
+    escaped_codes = [re.escape(code) for code in hierarchy_code[current_level][parent]]
+    pattern = r"\b(" + "|".join(escaped_codes) + r")\b"
     match = re.search(pattern, output_text)
     if match:
         output_text = match.group(1)
@@ -89,7 +88,7 @@ def extract_class(output_text, hierarchy_code, current_level, next_level):
     return None
 
 
-def llm_call_fake(tokenizer, llm, sampling_params, prompts, hierarchy_code, current_level, next_level):
+def llm_call_fake(tokenizer, llm, sampling_params, prompts, hierarchy_code, current_level, meta):
     """
     Fake LLM call that deterministically returns a valid option
     for each prompt, keyed by the original batch index.
@@ -113,7 +112,7 @@ def llm_call_fake(tokenizer, llm, sampling_params, prompts, hierarchy_code, curr
 
 
 
-def llm_call(tokenizer, llm, sampling_params, prompts, hierarchy_code, current_level, next_level):
+def llm_call(tokenizer, llm, sampling_params, prompts, hierarchy_code, current_level, meta):
     """
     texts: list of strings
     returns: list of (text, score)
@@ -139,12 +138,14 @@ def llm_call(tokenizer, llm, sampling_params, prompts, hierarchy_code, current_l
     results = {}
     results_probs = {}
     for idx, out in zip(prompt_ids, outputs):
+        parent, children = meta[idx]
         raw = out.outputs[0].text
         probs = out.outputs[0].logprobs
         nace_code = extract_class(output_text=raw, 
                                   hierarchy_code=hierarchy_code, 
                                   current_level=current_level, 
-                                  next_level=next_level)
+                                  parent=parent,
+                                  )
         results[idx]=nace_code
         results_probs[idx]=probs
         #print('############### result logits \n', results_probs, flush=True) #----------------- legge til sannsynlighetene i run functionen
