@@ -3,7 +3,6 @@ import re
 import os
 from pathlib import Path
 from matplotlib.backends.backend_pdf import PdfPages
-from vllm import LLM, SamplingParams
 import multiprocessing as mp
 from src.parser import parse_args
 
@@ -37,41 +36,60 @@ def splitting_dataset(df:pd.DataFrame, statify_column:str, train_file:str, test_
     return (train, val, test) if val_file else (train, test)
     
 
-def build_prompt(descriptions, level_name, options, parent=None):
+def build_prompt(descriptions, next_level, meta, map_code_name):
     prompts={}
-    options_str = "\n".join(f"- {opt}" for opt in options)
-    parent_str = f"\nParent category: {parent}" if parent else ""
     
     for indx in descriptions:
+        if indx not in meta:
+            print(f'meta does not exist for {indx}')
+            continue
+        parent, options = meta[indx]
+
+        options_str = "\n".join(f"- {map_code_name.get(opt, '')}" for opt in options)
+        parent_str = f"\nOverordnet kategori: {map_code_name.get(parent, '')}" if parent else ""
+        
         prompts[indx]=(
-        f"Company description:\n{descriptions[indx].strip()}\n\n"
-        f"Task:\nSelect the most appropriate {level_name}.{parent_str}\n\n"
-        f"Possible {level_name}:\n"
+        f"Bedriftsbeskrivelse:\n{descriptions[indx].strip()}\n\n"
+        f"Oppgave:\nVelg den mest passende '{next_level}' klassen.{parent_str}\n\n"
+        f"Mulige {next_level} klasser:\n"
         f"{options_str}\n\n"
-        "Answer with exactly ONE code from the list above.")
+        "Svar mednøyaktig ÉN kode fra listen ovenfor og velg KUN koden.\n"
+        "Ikke inkluder navn, forklaring eller andre tegn.")
     return prompts
 
 
-def extract_class(output_text, hierarchy, level, map_code_names):
+def extract_class(output_text, hierarchy_code, current_level, next_level):
+    " hierarchy is a hierarchy of allowed codes on that level. "
+
+    if output_text is None:
+        print(f"No code found in model output:\n{output_text}", flush=True)
+        return None
+
     # Removeing "assistant" prefix if present
     assistant_prefix = "assistant\n\n"
     if output_text.startswith(assistant_prefix):
         output_text = output_text[len(assistant_prefix):]
 
-    if output_text is None:
-        #print(f"No code found in model output:\n{output_text}", flush=True)
-        return None
-    
-    if output_text not in hierarchy[level]:
-        if output_text in map_code_names:
-            output_text = map_code_names[output_text]
-        else:
-            #print(f"{output_text} not in HIERARCHY", flush=True)
-            return None
-        
-    return output_text
+    escaped_codes = [re.escape(code) for code in hierarchy_code[next_level]]
+    pattern = r"\b(" + "|".join(escaped_codes) + r")\b"
 
-def llm_call_fake(tokenizer, llm, sampling_params, prompts, hierarchy, level, map_code_names):
+    # extract matches    ############################### this part #########################33
+    if output_text in hierarchy_code[current_level]:
+        return output_text
+  
+    #regex extraction
+    match = re.search(pattern, output_text)
+    if match:
+        output_text = match.group(1)
+        return output_text
+    # total failure
+    print(
+        f"Failed to extract valid code at level '{current_level}' from output: '{output_text}'",flush=True)
+        
+    return None
+
+
+def llm_call_fake(tokenizer, llm, sampling_params, prompts, hierarchy_code, level, map_code_names):
     """
     Fake LLM call that deterministically returns a valid option
     for each prompt, keyed by the original batch index.
@@ -83,11 +101,11 @@ def llm_call_fake(tokenizer, llm, sampling_params, prompts, hierarchy, level, ma
     results = {}
 
     for idx, p in zip(prompt_ids, prompt_texts):
-        options = hierarchy[level]
+        options = hierarchy_code[level]
 
         # Pick first valid option for reproducibility
         if isinstance(options, dict):
-            results[idx] = list(options.keys())[-1]
+            results[idx] = list(options.keys())[1]
         else:
             results[idx] = options[0]
 
@@ -95,13 +113,11 @@ def llm_call_fake(tokenizer, llm, sampling_params, prompts, hierarchy, level, ma
 
 
 
-def llm_call(tokenizer, llm, sampling_params, prompts, hierarchy, level, map_code_names):
+def llm_call(tokenizer, llm, sampling_params, prompts, hierarchy_code, current_level, next_level):
     """
     texts: list of strings
     returns: list of (text, score)
     """
-    
-
     prompt_ids = list(prompts.keys())
     prompt_texts = list(prompts.values())
 
@@ -109,7 +125,7 @@ def llm_call(tokenizer, llm, sampling_params, prompts, hierarchy, level, map_cod
         [
             [
             {"role": "system", 
-            "content": "You are an expert in SN2025 classification."},
+            "content": "Du er en ekspert på SN2025-klassifisering."},
             {"role": "user", "content": p}
             ] for p in prompt_texts
         ],
@@ -117,8 +133,6 @@ def llm_call(tokenizer, llm, sampling_params, prompts, hierarchy, level, map_cod
         add_generation_prompt=True
         )
     
-
-
     # Runing batched inference
     outputs = llm.generate(prompts_tokenized, sampling_params)
 
@@ -127,7 +141,10 @@ def llm_call(tokenizer, llm, sampling_params, prompts, hierarchy, level, map_cod
     for idx, out in zip(prompt_ids, outputs):
         raw = out.outputs[0].text
         probs = out.outputs[0].logprobs
-        nace_code = extract_class(output_text=raw, hierarchy=hierarchy, level=level, map_code_names=map_code_names)
+        nace_code = extract_class(output_text=raw, 
+                                  hierarchy_code=hierarchy_code, 
+                                  current_level=current_level, 
+                                  next_level=next_level)
         results[idx]=nace_code
         results_probs[idx]=probs
         #print('############### result logits \n', results_probs, flush=True) #----------------- legge til sannsynlighetene i run functionen
@@ -158,13 +175,41 @@ def derive_hier_names(df: pd.DataFrame, subclass_col:str, section_map, map_name)
     df["group"] = codes_gr + " - " + names_gr
 
     codes_cls = df[subclass_col].str[:5]
-    names_cls = df[subclass_col].map(map_name)
+    names_cls = codes_cls.map(map_name)
     df["class"] = codes_cls + " - " + names_cls
 
+    codes_subcls = df[subclass_col]
+    names_subcls = df[subclass_col].map(map_name)
+    df["subclass"] = codes_subcls + " - " + names_subcls
     return df
 
+
+def derive_hier(df: pd.DataFrame, subclass_col:str, section_map, map_name):
+    """  ["section", "division", "group", "class"] 
+    Expanding df to include all levels as separate columns 
+    """
+    
+    df = df.copy()
+    codes_div = df[subclass_col].str[:2]
+    df["division"] = codes_div 
+
+    codes_sec = codes_div.map(section_map) 
+    df["section"] = codes_sec
+
+    codes_gr = df[subclass_col].str[:4]
+    df["group"] = codes_gr 
+
+    codes_cls = df[subclass_col].str[:5]
+    df["class"] = codes_cls 
+
+    codes_subcls = df[subclass_col]
+    df["subclass"] = codes_subcls
+    return df
+
+
+
 def mapping_code_names(df: pd.DataFrame, subclass_col:str, section_map:dict, map_name:dict):
-    """  ["section", "division", "group", "class", "subclass"] """
+    "  ['section', 'division', 'group', 'class', 'subclass'] "
     df = df.copy()
 
     df_div = pd.DataFrame({
@@ -207,9 +252,10 @@ def build_parent_child_map(df, hier=['section', 'division', 'group', 'class', 'c
         )
         all_parent_child[hier[i]]=parent_child
 
+    all_parent_child['root'] = list(all_parent_child['section'].keys())
     return all_parent_child
 
-def auto_descend(parent, hierarchy):
+def auto_descend(parent, hierarchy_code, current_level):
     """
     Walk down hierarchy automatically
     while only ONE child exists.
@@ -219,17 +265,28 @@ def auto_descend(parent, hierarchy):
     "division": "group",
     "group": "class",
     "class" :"subclass"
-    }
-    for level in ["section", "division", "group", "class"]:
-        if parent in hierarchy[level] and len(hierarchy[level][parent]) == 1:
-            parent = hierarchy[level][parent][0]
-        else:
+    }            
+    level = current_level
+
+    while level in child_level:
+        # no children in this level = stop
+        if parent not in hierarchy_code.get(level, {}):
             return parent, level
-    
-    return parent, child_level[level]
+        
+        children = hierarchy_code[level][parent]
+
+        # more than one child = stop
+        if len(children) != 1:
+            return parent, level
+        
+        # exactky one child = decend
+        parent = children[0]
+        level = child_level[level]
+        
+    return parent, level
 
 
-def companies_at_level(batch_results, level, map_hier_indx):
+def companies_at_level(batch_results, current_level, map_hier_indx):
     """
     Gather all the company indexes from this batch that are at the same level to one list.
     
@@ -240,10 +297,21 @@ def companies_at_level(batch_results, level, map_hier_indx):
     """
     companies = []
     for idx, res in batch_results.items():
+        # section
+        if current_level == "section":                
+            if not res:
+                companies.append(idx)
+            continue
+
+        # rest of the levels
         if not res:
             continue
-        deepest = max(res.keys(), key=lambda k: map_hier_indx[k])
-        if deepest == level:
+
+        deepest_level_indx = max(res.keys(), key=lambda k: map_hier_indx[k])
+        current_level_indx = map_hier_indx[current_level]
+        if deepest_level_indx == current_level_indx:
+            print('deepest_level_indx ', deepest_level_indx)
+            print('current_level_indx ', current_level_indx)
             companies.append(idx)
     return companies
 
@@ -251,10 +319,11 @@ def companies_at_level(batch_results, level, map_hier_indx):
 def prepare_level_prompts(
     companies,
     batch_results,
-    hierarchy,
+    hierarchy_code,
     current_level,
     next_level,
-    descriptions
+    descriptions,
+    map_code_name
 ):
     """
     Build prompt for all the companies in the batch at a specific level.
@@ -267,58 +336,88 @@ def prepare_level_prompts(
     :param next_level: The level that is being predicted
     :param descriptions: company descriptions and names
     """
-    #prompts = []
     meta = {}
     selected_descp={}
     for company in companies:
-        parent = batch_results[company][current_level]
 
-        if parent not in hierarchy.get(current_level, {}):
-            batch_results[company][next_level] = parent
-            continue
+        # section level
+        if current_level == 'section':
+            parent=None
+            children = hierarchy_code[current_level]
+            selected_descp[company]=descriptions[company]
+            meta[company]=(parent, children)
 
-        children = hierarchy[current_level][parent]
+        else:
+            if current_level not in batch_results[company]:
+                continue
+            
+            # lower levels (division and down)
+            parent = batch_results[company][current_level]
 
-        if len(children) == 1:
-            auto_code, auto_level = auto_descend(children[0], hierarchy)
-            batch_results[company][auto_level] = auto_code
-            continue
-        
-        selected_descp[company]=descriptions[company]
-        meta[company]=(parent, children)
+            if parent not in hierarchy_code.get(current_level, {}):
+                batch_results[company][next_level] = parent
+                continue
+
+            children = hierarchy_code[current_level][parent]
+
+            if len(children) == 1:
+                auto_code, auto_level = auto_descend(parent=parent, 
+                                                     hierarchy_code=hierarchy_code, 
+                                                     current_level=current_level)
+                batch_results[company][auto_level] = auto_code
+                children = hierarchy_code[auto_level][auto_code]
+                continue
+            
+            selected_descp[company]=descriptions[company]
+            meta[company]=(parent, children)
 
     prompts = build_prompt(
         descriptions=selected_descp,
-        level_name=next_level,
-        options=children,
-        parent=parent
+        next_level=next_level,
+        meta=meta,
+        map_code_name=map_code_name,
     )
-
-        #prompts.append(prompt)
-
     return prompts, meta
+
 
 def validate_and_assign(
     preds,
     meta,
     batch_results,
-    hierarchy
+    hierarchy_code,
+    current_level,
 ):
-    for idx in preds:
-        pred=preds[idx]
-        parent, children = meta[idx][0], meta[idx][1]
+    for idx, pred in preds.items():
 
-        # normalization
         if isinstance(pred, list):
+            print('list pred', pred)
             pred = pred[0]
+
+        parent, children = meta[idx]
+
+        if isinstance(parent, list):
+            print('parent list', parent)
+            parent = parent[0]
 
         if pred in children:
             label = pred
         else:
             label = parent
-        final_code, final_level = auto_descend(parent=label, hierarchy=hierarchy)
-        print('final_code: ', final_code, '\n final_level: ', final_level)
+
+        if current_level != 'subclass':
+            final_code, final_level = auto_descend(
+                parent=label,
+                hierarchy_code=hierarchy_code,
+                current_level=current_level
+            )
+        else:
+            final_code, final_level = label, current_level
+
+        if not isinstance(final_level, str):
+            raise ValueError(f"Invalid final_level: {final_level}")
+
         batch_results[idx][final_level] = final_code
+
     return batch_results
 
 

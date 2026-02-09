@@ -6,6 +6,7 @@ import pandas as pd
 import os
 from pathlib import Path
 import json
+import torch
 from matplotlib.backends.backend_pdf import PdfPages
 from vllm import LLM, SamplingParams
 from src.parser import parse_args
@@ -48,22 +49,22 @@ ALL_COLUMNS = BASE_COLUMNS + PRED_COLUMNS
 
 def run_classify_nace(tokenizer, 
         llm,
-        subclasses,
+        subclasses_name_code,
+        subclasses_code,
         map_code_names,
         input_file:str=args.test_data_file, 
         input:str|list[str] = ["company_activity", "company_name"],
         sampling_params=sampling_params, 
         batch_size=args.batch_size, 
         output_file:str=args.output_file_flat,
-        checkpoint_file="checkpoint_flat.json",
+        checkpoint_file="results/checkpoint_flat.json",
         ):
-    
-    """
-    input_df = pd.read_csv(input_file, dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
-    input_df=input_df.iloc[:200]
-    for i in range(0, len(input_df), 2):
-        batch = input_df.iloc[i:i + batch_size]
-    """
+    start_idx = None
+    if os.path.exists(checkpoint_file):
+        with open(checkpoint_file, 'r') as f:
+            checkpoint = json.load(f)
+            start_idx = checkpoint.get('last_idx')
+
     
     for batch in pd.read_csv(input_file, 
                              dtype={
@@ -79,8 +80,16 @@ def run_classify_nace(tokenizer,
                              keep_default_na=False, 
                              na_values=[]
                              ):
+        
+        # continuing from last company processed
+        if start_idx is not None and batch.index.max() <= start_idx:
+            continue
+        if start_idx is not None:
+            batch = batch[batch.index > start_idx]
+            if batch.empty:
+                continue
+        
         batch = batch.fillna("")
-
         descriptions=batch[input].astype(str).agg(" ".join, axis=1).to_dict()
 
         # results per company
@@ -89,15 +98,15 @@ def run_classify_nace(tokenizer,
         # flat prompts with all subclasses
         prompts = build_prompt(
             descriptions=descriptions,
-            options=subclasses
+            options=subclasses_name_code
         )
 
         preds = llm_call(
-            tokenizer=tokenizer, 
+            tokenizer=tokenizer,
             llm=llm, 
             sampling_params=sampling_params,
             prompts=prompts,
-            subclasses=subclasses, 
+            subclasses_code =subclasses_code, 
             map_code_names=map_code_names)
 
         print('########### preds\n',preds)
@@ -119,32 +128,40 @@ def run_classify_nace(tokenizer,
             output_file,
             mode='a',
             header=not os.path.exists(output_file),
-            index=False
+            index=True
         )
 
         
         # update checkpoint
         with open(checkpoint_file, "w") as f:
-            json.dump({"last_idx": idx}, f)
-    return batch
+            json.dump({"last_idx": int(batch.index.max())}, f)
+    return None
 
-if __name__ == "__main__":
+if __name__ == "__main__":    
+    num_visible = torch.cuda.device_count()
+    """if num_visible == 0:
+        raise RuntimeError("No GPUs visible — aborting before vLLM init")"""
+    
+    print('num_visible ',num_visible)
     model = LLM(args.model_name,
-                #max_model_len=70123,
-                tensor_parallel_size=args.num_gpus) # bigger models may require more GPUs and higher tensor parallel size
+                tensor_parallel_size=num_visible) # bigger models may require more GPUs and higher tensor parallel size
 
     tokenizer = model.get_tokenizer()
    
     map_name = df_hier[['code', 'name']].set_index('code')['name'].to_dict()
-    subclasses = tuple(df_hier[df_hier['level']==5][['code','name']].astype(str).agg(" - ".join, axis=1))
+    subclasses_name_code = tuple(df_hier[df_hier['level']==5][['code','name']].astype(str).agg(" - ".join, axis=1))
+    subclasses_code = tuple(df_hier[df_hier['level']==5]['code'].astype(str))
+
     map_code_names = mapping_code_names(df=df_hier[df_hier['level']==5],  subclass_col='code', map_name=map_name)
-    df_with_res = run_classify_nace(
+    ddd = run_classify_nace(
         tokenizer=tokenizer, 
         llm=model,
-        subclasses=subclasses,
+        subclasses_name_code=subclasses_name_code,
+        subclasses_code=subclasses_code,
         map_code_names=map_code_names,
         )
-
+    print(ddd)
+    """
     res_sub, res_cl, res_gro, res_div = metrics_levels(
         target=df_with_res['nace_21_code'], 
         pred=df_with_res['pred_subclass']) 
@@ -154,4 +171,4 @@ if __name__ == "__main__":
         pdf.savefig(df_to_table(res_cl, "Class Results"))
         pdf.savefig(df_to_table(res_gro, "Group Results"))
         pdf.savefig(df_to_table(res_div, "Division Results"))
-    
+    """

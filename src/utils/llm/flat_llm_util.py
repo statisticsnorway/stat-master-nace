@@ -1,9 +1,7 @@
 import pandas as pd
-import re
-import os
 from pathlib import Path
+import re
 from matplotlib.backends.backend_pdf import PdfPages
-from vllm import LLM, SamplingParams
 import multiprocessing as mp
 from src.parser import parse_args
 
@@ -21,35 +19,44 @@ def build_prompt(descriptions, options):
     
     for indx in descriptions:
         prompts[indx]=(
-        f"Company description:\n{descriptions[indx].strip()}\n\n"
-        "Task:\nSelect the most appropriate subclass.\n\n"
-        "Possible subclasses:\n"
+        f"Bedriftsbeskrivelse:\n{descriptions[indx].strip()}\n\n"
+        "Oppgave:\nVelg den NACE-underklassen som passer best.\n\n"
+        "Mulige NACE-klasser:\n"
         f"{options_str}\n\n"
-        "Answer with exactly ONE code from the list above.")
+        "Svar mednøyaktig ÉN kode fra listen ovenfor og velg KUN koden (for eksempel: 01.110).\n"
+        "Ikke inkluder navn, forklaring eller andre tegn.")
     return prompts
 
 
+def extract_class(output_text, subclasses_code, map_code_names):
+    escaped_codes = [re.escape(code) for code in subclasses_code]
+    pattern = r"\b(" + "|".join(escaped_codes) + r")\b"
 
-def extract_class(output_text, subclasses, map_code_names):
     # Removeing "assistant" prefix if present
     assistant_prefix = "assistant\n\n"
     if output_text.startswith(assistant_prefix):
         output_text = output_text[len(assistant_prefix):]
 
     if output_text is None:
-        ##print(f"No code found in model output:\n{output_text}", flush=True)
+        print(f"No code found in model output:\n{output_text}", flush=True)
         return f"No code found in model output"
     
-    if output_text not in subclasses:
+    if output_text not in subclasses_code:
+        match = re.search(pattern, output_text)
+
+        # if the output is code and name compines
         if output_text in map_code_names:
             output_text = map_code_names[output_text]
+        elif match:
+            output_text = match.group(1)
         else:
-            ##print(f"{output_text} not in HIERARCHY", flush=True)
+            print(f"####### {output_text} not in HIERARCHY", flush=True)
             return None
-        
+
     return output_text
 
-def llm_call_fake(tokenizer, llm, sampling_params, prompts, subclasses, map_code_names):
+
+def llm_call_fake(tokenizer, llm, sampling_params, prompts, subclasses_code, map_code_names):
     """
     Fake LLM call that deterministically returns a valid option
     for each prompt, keyed by the original batch index.
@@ -61,7 +68,7 @@ def llm_call_fake(tokenizer, llm, sampling_params, prompts, subclasses, map_code
     results = {}
 
     for idx, p in zip(prompt_ids, prompt_texts):
-        options = subclasses
+        options = subclasses_code
 
         # Pick first valid option for reproducibility
         if isinstance(options, dict):
@@ -71,7 +78,7 @@ def llm_call_fake(tokenizer, llm, sampling_params, prompts, subclasses, map_code
 
     return results
 
-def llm_call(tokenizer, llm, sampling_params, prompts, subclasses, map_code_names):
+def llm_call(tokenizer, llm, sampling_params, prompts, subclasses_code, map_code_names):
     """
     Docstring for llm_call
     
@@ -91,7 +98,7 @@ def llm_call(tokenizer, llm, sampling_params, prompts, subclasses, map_code_name
         [
             [
             {"role": "system", 
-            "content": "You are an expert in SN2025 classification."},
+            "content": "Du er en ekspert på SN2025-klassifisering."},
             {"role": "user", "content": p}
             ] for p in prompt_texts
         ],
@@ -109,8 +116,8 @@ def llm_call(tokenizer, llm, sampling_params, prompts, subclasses, map_code_name
     for idx, out in zip(prompt_ids, outputs):
         raw = out.outputs[0].text
         probs = out.outputs[0].logprobs
-        #print('--------- raw prompt ------------ \n', raw, flush=True)
-        nace_code = extract_class(output_text=raw, subclasses=subclasses, map_code_names=map_code_names)
+        print('--------- raw prompt ------------ \n', raw, flush=True)
+        nace_code = extract_class(output_text=raw, subclasses_code=subclasses_code, map_code_names=map_code_names)
         results[idx]=nace_code
         results_probs[idx]=probs
         #print('############### result logits \n', results_probs, flush=True) #----------------- legge til sannsynlighetene i run functionen
@@ -128,11 +135,11 @@ def mapping_code_names(df: pd.DataFrame, subclass_col:str, map_name:dict):
     df = df.copy()
 
     df_subcls = pd.DataFrame({
+        "name": df[subclass_col] + " - " + df[subclass_col].map(map_name),
         "code": df[subclass_col],
-        "name": df[subclass_col] + " - " + df[subclass_col].map(map_name)
     })
 
-    map_df = df_subcls.drop_duplicates().set_index("code")["name"].to_dict()
+    map_df = df_subcls.drop_duplicates().set_index("name")["code"].to_dict()
     return map_df
 
 
