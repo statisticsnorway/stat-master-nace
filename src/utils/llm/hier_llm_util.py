@@ -53,39 +53,64 @@ def build_prompt(descriptions, next_level, meta, map_code_name):
         f"Oppgave:\nVelg den mest passende '{next_level}' klassen.{parent_str}\n\n"
         f"Mulige {next_level} klasser:\n"
         f"{options_str}\n\n"
-        "Svar mednøyaktig ÉN kode fra listen ovenfor og velg KUN koden.\n"
-        "Ikke inkluder navn, forklaring eller andre tegn.")
+        "Svar med nøyaktig ÉN kode fra listen ovenfor og velg KUN koden.\n"
+        "Svarformat:\n"
+        "<KODE>\n"
+        "Ikke skriv ord, forklaring, punktum eller andre tegn.")
     return prompts
 
 
-def extract_class(output_text, hierarchy_code, current_level, parent):
+def extract_class(output_text:str, current_level:str, parent:str, children:list[str], map_code_names):
     " hierarchy is a hierarchy of allowed codes on that level. "
-
-    if output_text is None:
-        print(f"No code found in model output:\n{output_text}", flush=True)
-        return None
 
     # Removeing "assistant" prefix if present
     assistant_prefix = "assistant\n\n"
     if output_text.startswith(assistant_prefix):
         output_text = output_text[len(assistant_prefix):]
 
+    if output_text is None:
+        print(f"No code found in model output:\n{output_text}", flush=True)
+        return None
+
     # extract matches   
-    if output_text in hierarchy_code[current_level]:
+    if output_text in children:
         return output_text
-  
+    
+    if output_text in map_code_names:
+        output_text = map_code_names[output_text]
+        return output_text
+
+
+
+    print(f"raw output that needs to be extracted: {output_text}")
     #regex extraction
-    escaped_codes = [re.escape(code) for code in hierarchy_code[current_level][parent]]
-    pattern = r"\b(" + "|".join(escaped_codes) + r")\b"
-    match = re.search(pattern, output_text)
-    if match:
-        output_text = match.group(1)
-        return output_text
+    escaped_codes = [re.escape(code) for code in children]
+    print('----------- escaped codes \n', escaped_codes)
+    if current_level != 'root':
+        pattern = r"\b(" + "|".join(escaped_codes) + r")\b"
+        match = re.search(pattern, output_text)
+        if match:
+            output_text = match.group(1)
+            return output_text
+        
+    elif current_level == 'root':
+        pattern = r"(?:^|\s|:)<?(" + "|".join(escaped_codes) + r")>?(?:\s|$)"
+        match = re.search(pattern, output_text)
+        if match:
+            output_text = match.group(1)
+            return output_text
+            
+    ### NOTE: should we make the model classify the level again if the classification is not valid?
+    #if parent is None:
+    #    return None
+    
+        
     # total failure
     print(
         f"Failed to extract valid code at level '{current_level}' from output: '{output_text}'",flush=True)
         
     return None
+
 
 
 def llm_call_fake(tokenizer, llm, sampling_params, prompts, hierarchy_code, current_level, meta):
@@ -112,7 +137,7 @@ def llm_call_fake(tokenizer, llm, sampling_params, prompts, hierarchy_code, curr
 
 
 
-def llm_call(tokenizer, llm, sampling_params, prompts, hierarchy_code, current_level, meta):
+def llm_call(tokenizer, llm, sampling_params, prompts, current_level, meta, map_code_name):
     """
     texts: list of strings
     returns: list of (text, score)
@@ -140,11 +165,13 @@ def llm_call(tokenizer, llm, sampling_params, prompts, hierarchy_code, current_l
     for idx, out in zip(prompt_ids, outputs):
         parent, children = meta[idx]
         raw = out.outputs[0].text
+        print('raw ##########', raw)
         probs = out.outputs[0].logprobs
         nace_code = extract_class(output_text=raw, 
-                                  hierarchy_code=hierarchy_code, 
                                   current_level=current_level, 
+                                  children=children,
                                   parent=parent,
+                                  map_code_names=map_code_name,
                                   )
         results[idx]=nace_code
         results_probs[idx]=probs
@@ -306,8 +333,6 @@ def companies_at_level(batch_results, current_level, map_hier_indx):
             continue
 
         deepest_level = max(res.keys(), key=lambda k: map_hier_indx[k])
-        print('deepest_level_indx ', deepest_level)
-        print('current_level_indx ', current_level)
         if deepest_level == current_level:
             companies.append(idx)
     return companies
@@ -400,7 +425,7 @@ def validate_and_assign(
         if pred in children:
             label = pred
         else:
-            label = parent
+            label = None
 
         if current_level != 'class':
             final_code, final_level = auto_descend(

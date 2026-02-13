@@ -22,7 +22,8 @@ train_ = pd.read_csv(f"{DATA_FX_TR_VAL_TE}train.csv", dtype={'company_activity':
 test_ = pd.read_csv(f"{DATA_FX_TR_VAL_TE}test.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
 val_ = pd.read_csv(f"{DATA_FX_TR_VAL_TE}val.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
 
-df_hier = pd.read_csv(StringIO(requests.get(HIERARCHY_DATA).text), delimiter=',')
+df_hier = pd.read_csv(HIERARCHY_DATA, dtype={'code':str}, sep=";", encoding="latin1")
+#pd.read_csv(StringIO(requests.get(HIERARCHY_DATA).text), delimiter=';')
 
 hierarchies = ["section", "division", "group", "class", "nace_21_code"]
 levels = [1, 2, 3, 4, 5]

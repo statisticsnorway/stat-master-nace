@@ -27,11 +27,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 
 df_hier = pd.read_csv(HIERARCHY_DATA, dtype={'code':str}, sep=";", encoding="latin1")
 
-sampling_params = SamplingParams(
-        temperature=0.3,
-        max_tokens=50,
-        logprobs=1
-    )
 
 BASE_COLUMNS = [
     'company_activity',
@@ -57,11 +52,11 @@ def run_classify_nace(tokenizer,
         sampling_params=sampling_params, 
         batch_size=args.batch_size, 
         output_file:str=args.output_file_flat,
-        checkpoint_file="results/checkpoint_flat.json",
+        checkpoint_file=args.checkpoint_file_flat #"results/checkpoint_flat.json",
         ):
     start_idx = None
-    if os.path.exists(checkpoint_file):
-        with open(checkpoint_file, 'r') as f:
+    if os.path.exists(f"{RES_LM}{checkpoint_file}"):
+        with open(f"{RES_LM}{checkpoint_file}", 'r') as f:
             checkpoint = json.load(f)
             start_idx = checkpoint.get('last_idx')
 
@@ -69,6 +64,7 @@ def run_classify_nace(tokenizer,
     for batch in pd.read_csv(input_file, 
                              dtype={
                                  'company_activity':str,
+
                                  'company_name':str,
                                  'division':str, 
                                  'group':str, 
@@ -125,15 +121,15 @@ def run_classify_nace(tokenizer,
 
         # Write to CSV
         batch.to_csv(
-            output_file,
+            f'{RES_LM}{output_file}',
             mode='a',
-            header=not os.path.exists(output_file),
+            header=not os.path.exists(f'{RES_LM}{output_file}'),
             index=True
         )
 
         
         # update checkpoint
-        with open(checkpoint_file, "w") as f:
+        with open(f"{RES_LM}{checkpoint_file}", "w") as f:
             json.dump({"last_idx": int(batch.index.max())}, f)
     return None
 
@@ -143,6 +139,11 @@ if __name__ == "__main__":
         raise RuntimeError("No GPUs visible — aborting before vLLM init")"""
     
     print('num_visible ',num_visible)
+    sampling_params = SamplingParams(
+        temperature=0, # 0 means deterministic decoding
+        max_tokens=50,
+        logprobs=1
+    )
     model = LLM(args.model_name,
                 tensor_parallel_size=num_visible) # bigger models may require more GPUs and higher tensor parallel size
 

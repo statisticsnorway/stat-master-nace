@@ -69,13 +69,13 @@ def run_classify_nace(tokenizer,
         batch_size=1,#args.batch_size, 
         output_file:str=args.output_file_hier,
         levels=["root", "section", "division", "group", "class", "subclass"],
-        checkpoint_file="results/checkpoint_hier.json",
+        checkpoint_file=args.checkpoint_file_hier #"results/checkpoint_hier.json",
         ):
     """current level is the level that presents possible classes at that level that can be classified. 
         next_level is the level that is being classified"""
     start_idx=None
-    if os.path.exists(checkpoint_file):
-        with open(checkpoint_file, "r") as f:
+    if os.path.exists(f"{RES_LM}{checkpoint_file}"):
+        with open(f"{RES_LM}{checkpoint_file}", "r") as f:
             checkpoint = json.load(f)
             start_idx=checkpoint.get('last_idx')
 
@@ -131,7 +131,7 @@ def run_classify_nace(tokenizer,
         # results per company
         batch_results = {idx: {} for idx in batch.index}
 
-        ############### all other levels ###################
+        ############### all levels ###################
 
         for i_level in range(len(levels) - 1):
             current_level = levels[i_level]
@@ -143,7 +143,7 @@ def run_classify_nace(tokenizer,
                 current_level=current_level,
                 map_hier_indx=map_hier_indx
             )
-            print('companies ', companies)
+            #print('companies ', companies)
 
             if not companies:
                 continue
@@ -160,20 +160,15 @@ def run_classify_nace(tokenizer,
 
             if not prompts:
                 continue
-
-            print('promtpts next level ', prompts)
-            
-            #### including mapping from code to code-name  
-
-
+            print('meta \n ', meta)                    
             preds = llm_call(
                 tokenizer=tokenizer,
                 llm=llm,
                 sampling_params=sampling_params,
                 prompts=prompts,
-                hierarchy_code=hierarchy,
                 current_level=current_level,
                 meta=meta,
+                map_code_name=map_code_names,
             )
             print('preds ', preds)
 
@@ -188,23 +183,23 @@ def run_classify_nace(tokenizer,
       
         print('batch results', batch_results)
 
-        if current_level == 'subclass':
+        if next_level == 'subclass':
             # Add predictions to batch DataFrame
             for idx, res in batch_results.items():
                 batch.loc[idx, "pred_subclass"] = res.get("subclass", "")
-
+            print('batch \n', batch)
             batch = batch.reindex(columns=ALL_COLUMNS)
             assert list(batch.columns) == ALL_COLUMNS, f"Schema mismatch: {batch.columns}"
             # Write to CSV
             batch.to_csv(
-                output_file,
+                f'{RES_LM}{output_file}',
                 mode='a',
-                header=not os.path.exists(output_file),
+                header=not os.path.exists(f'{RES_LM}{output_file}'),
                 index=True
             )
             
             # update checkpoint
-            with open(checkpoint_file, "w") as f:
+            with open(f"{RES_LM}{checkpoint_file}", "w") as f:
                 json.dump({"last_idx": int(batch.index.max())}, f)
     return None
 
@@ -220,14 +215,14 @@ if __name__ == "__main__":
         tokenizer=1
         sampling_params=1
     else:
-        model =LLM(args.model_name,
+        model=LLM(args.model_name,
                     #max_model_len= 65536,
                     tensor_parallel_size=num_visible) # bigger models may require more GPUs and higher tensor parallel size
-        tokenizer =model.get_tokenizer()
+        tokenizer=model.get_tokenizer()
         
         sampling_params = SamplingParams(
-            temperature=0.3,
-            max_tokens=50,
+            temperature=0,
+            max_tokens=20,
             logprobs=1
             )
    
