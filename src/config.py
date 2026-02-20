@@ -32,6 +32,11 @@ HIERARCHY_DATA = os.path.join(DATA, 'nace25_hierarki_nor.csv')
 DATA_BR_TRAIN = os.path.join(DATA, 'train_norwaydata.csv') #'https://minio.lab.sspcloud.fr/projet-aiml4os-wp10/NorwayData/train_norwaydata.parquet'
 DATA_BR_TEST = os.path.join(DATA, 'test_norwaydata.csv') #'https://minio.lab.sspcloud.fr/projet-aiml4os-wp10/NorwayData/test_norwaydata.parquet'
 
+# general train val test data
+DATASETS=os.path.join(DATA,'datasets')
+JSON_FILES=f"{SAVE_PATH}json_files/"
+
+
 ## lm data
 DATA_LM=f"{DATA}data_lm/"
 DATA_LM_TR_VAL_TE=f"{DATA_LM}tr_val_te/"
@@ -50,9 +55,9 @@ M_F_H= f"{SAVE_PATH}data/models_fastxt_hier/"
 
 # Restults folder 
 ## fasttext models
-RES_FASTXT = f"{SAVE_PATH}results/fasttext/"
+RES_DUMMY =  f"{SAVE_PATH}results/dummy/"
+RES_FASTXT_FLAT = f"{SAVE_PATH}results/fasttext/flat"
 RES_HIER_M = f"{SAVE_PATH}results/fasttext/hier_fastxt_model/"
-JSON_FILES=f"{SAVE_PATH}results/fasttext/json_files/"
 
 # including name column vs not
 RES_AUTO_TEXT_NAME=f"{SAVE_PATH}results/fasttext/autotune_text_navn/"

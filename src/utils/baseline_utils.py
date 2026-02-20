@@ -8,83 +8,41 @@ from sklearn.model_selection import train_test_split
 from src.config import MODELS_FASTXT, DATA_FX_TR_VAL_TE, DATA_FX_TR_TE
 
 
-
-def fasttext_dataprep(df: pd.DataFrame, columns:list[str])-> pd.DataFrame:
+def fasttext_dataprep(df: pd.DataFrame, columns:list[str], df_file:str)-> pd.DataFrame:
     df = df.copy()
     df[columns] = df[columns].astype(str).replace(r'\b(nan|none|na)\b', '', regex=True)
     # Create fasttext format
     df["fasttext_format"] = "__label__" + df[columns].agg(' '.join, axis=1)
     # Remove extra spaces
     df["fasttext_format"] = df["fasttext_format"].str.replace(r'\s+', ' ', regex=True).str.strip()
+
+    df["fasttext_format"].to_csv(f"{df_file}.txt", index=False, header=False)
+    #pd.read_csv(f"{DATA_FX_TR_VAL_TE}test.csv")
+    
     return df 
 
-def splitting_dataset(df:pd.DataFrame, statify_column:str, train_file:str, test_file:str, seed:int, val_file:str = False)->pd.DataFrame:
-        
-    # train vs test
-    train, temp = train_test_split(df, test_size=0.4, random_state=seed, stratify=df[statify_column])
-    #### stratified cross validation instead of validation set
-    
-    if val_file==False:
-        test=temp
-            
-        train["fasttext_format"].to_csv(f"{train_file}.txt", index=False, header=False)
-        pd.read_csv(f"{DATA_FX_TR_TE}train.csv")
 
-        test["fasttext_format"].to_csv(f"{test_file}.txt", index=False, header=False)
-        pd.read_csv(f"{DATA_FX_TR_TE}test.csv")
-    
-    else: 
-        # test vs validation
-        test, val = train_test_split(temp, test_size=0.5, random_state=seed, stratify=temp[statify_column])
-        val["fasttext_format"].to_csv(f"{val_file}.txt", index=False, header=False)
-        pd.read_csv(f"{DATA_FX_TR_VAL_TE}val.csv")
-
-        train["fasttext_format"].to_csv(f"{train_file}.txt", index=False, header=False)
-        pd.read_csv(f"{DATA_FX_TR_VAL_TE}train.csv")
-
-        test["fasttext_format"].to_csv(f"{test_file}.txt", index=False, header=False)
-        pd.read_csv(f"{DATA_FX_TR_VAL_TE}test.csv")
-    
-    return (train, val, test) if val_file else (train, test)
-    
-def pred_prep(df:pd.DataFrame, input_cols:list[str], output_cols:list[str])->list[str]:
-    labels = df[output_cols[0]].astype(str).tolist()
+def pred_prep(df:pd.DataFrame, input_cols:list[str], output_cols:str)->list[str]:
+    labels = df[output_cols].astype(str).to_numpy()[:, 0]
     if len(input_cols) >1:
-        input_txt = (df[input_cols].astype(str).agg(' '.join, axis=1)).tolist()
-        df = df.copy()
-        df["tekst og navn"] = input_txt
+        input_txt = df[input_cols].astype(str).agg(' '.join, axis=1).tolist()
+        #df = df.copy()
+        #df["tekst og navn"] = input_txt
     else: 
-        input_txt = df[input_cols[0]].astype(str).tolist()
-    return input_txt, labels, df
+        input_txt = df[input_cols].astype(str).tolist()
+    return input_txt, labels
 
 
-def fasttext_input(df:pd.DataFrame, columns:list[str], statify_column:str, seed:int,
-                  train_file='train_fasttext', test_file='test_fasttext', val_file= False): #'val_fasttext'
-
-    df_prep = fasttext_dataprep(df, columns)
-    
-    if val_file:
-        train, val, test=splitting_dataset(
-            df_prep, statify_column, seed=seed,
-            train_file=f"{train_file}",
-            val_file=f"{val_file}", 
-            test_file=f"{test_file}")
-        return train, val, test 
-        
-    else:
-        train, test=splitting_dataset(
-            df_prep, statify_column, seed=seed,
-            train_file=f"{train_file}", 
-            test_file=f"{test_file}")
-        return train, test
     
 
 ### Fasttext result preparation
-def output_prep(labels:list[str]):
+def output_prep(labels:list[str], pred_probs=None):
     labels = np.char.replace(np.ravel(np.array(labels)), "__label__", "")
 
     #labels = [l[0].replace('__label__', '') for l in labels]
     #labels = np.array(labels)
+    if pred_probs is not None:
+        pred_probs=np.ravel(np.array(pred_probs))
     return labels
 
 def hyper_params(model_file):

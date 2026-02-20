@@ -4,6 +4,47 @@ import matplotlib.pyplot as plt
 
 import sklearn.metrics as m
 from sklearn.preprocessing import OneHotEncoder 
+from src.config import HIERARCHY_DATA
+
+df_hier=pd.read_csv(HIERARCHY_DATA, dtype={'code':str}, sep=";", encoding="latin1")
+map_sec = dict(zip(df_hier[df_hier['level']==2]["code"], df_hier[df_hier['level']==2]["parentCode"]))
+
+def get_ancestors(node, map_sec):
+    # Returns a set of the node and all its ancestors
+    ancestors = set()
+
+    ancestors.add(node)
+
+    parts = node.split('.')
+    if len(parts) == 2:
+        cl = parts[0] + '.' + parts[1][:-1]
+        grp = parts[0] + '.' + parts[1][:-2]
+        div = parts[0]
+        sec = map_sec[parts[0]]
+    else:
+        ValueError('Not a valid code')
+    return {node, cl, grp, div, sec}
+
+def hierarchical_f1(y_true, y_pred, map_sec=map_sec):
+    # y_true, y_pred are lists of labels
+    # hierarchy is a dict: {child: parent}
+    
+    true_set = set()
+    pred_set = set()
+    
+    for t,p in zip(y_true,y_pred):
+        true_set.update(get_ancestors(t,map_sec))
+        pred_set.update(get_ancestors(p,map_sec))
+        
+    tp = len(true_set.intersection(pred_set))
+    fp = len(pred_set - true_set)
+    fn = len(true_set - pred_set)
+    
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+    
+    f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+    return f1
 
 
 def brier_multi(targets, probs):    
@@ -27,23 +68,26 @@ def brier_multi(targets, probs):
 def metrics(target, pred):
     target, pred = np.array(target), np.array(pred)
     results = {}
-
-    for avg in ['macro', 'micro', 'weighted']:
+    #print('target \n', target, 'pred \n', pred)
+    for avg in ['macro', 'weighted']:
         results[avg] = {
             "f1": m.f1_score(target, pred, zero_division=np.nan, average=avg),
-            "recall": m.recall_score(target, pred, zero_division=np.nan, average=avg),
-            "precision": m.precision_score(target, pred, zero_division=np.nan, average=avg),
+            #"recall": m.recall_score(target, pred, zero_division=np.nan, average=avg),
+            #"precision": m.precision_score(target, pred, zero_division=np.nan, average=avg),
         }
-    results['brier score'] = {"brier score":brier_multi(target, pred)}
+    results['score'] = {'brier_score':brier_multi(target, pred)}
 
+    if len(target[0]) == 6:
+        results['score']['HF1'] = hierarchical_f1(target,pred)
+    
     # Converts to DataFrame
     df_results = pd.DataFrame(results).T  # .T transposes so metrics are rows
-    df_results = df_results.set_index(np.array(['macro', 'micro', 'weighted', 'score']))
+    #df_results = df_results.set_index(np.array(['macro', 'micro', 'weighted', 'score']))
     df_results.index.name = "average"
     return df_results
 
 
-def metrics_levels(target:list[str], pred:list[str]):
+def metrics_levels(target:list[str], pred:list[str], map_sec=map_sec):
     """
     target: Subclass targets.
     preds: Subclass predictions.
@@ -60,13 +104,17 @@ def metrics_levels(target:list[str], pred:list[str]):
     
     div_t = np.array([s[:2] for s in target])
     div_p = np.array([s[:2] for s in pred])
+
+    sec_t = np.array([map_sec[t] for t in div_t])
+    sec_p = np.array([map_sec[p] for p in div_p])
     
     res_sub=metrics(target, pred)
     res_cl=metrics(cl_t, cl_p)
     res_gro=metrics(gro_t, gro_p)
     res_div=metrics(div_t, div_p)
+    res_sec=metrics(sec_t,sec_p)
     
-    return res_sub, res_cl, res_gro, res_div
+    return res_sub, res_cl, res_gro, res_div, res_sec
 
 def df_to_table(df, title=""):
     fig, ax = plt.subplots(figsize=(8, 4))
@@ -79,26 +127,10 @@ def df_to_table(df, title=""):
     plt.title(title)
     return fig
 
-"""
-def metrics_lm(eval_pred):
-    print('eval_pred')
-    print(eval_pred)
-    logits, labels = eval_pred
-    if isinstance(logits, tuple):  # sometimes Trainer returns (logits,)
-        logits = logits[0]
-
-    preds = np.argmax(logits, axis=-1)
-    labels = np.array(labels)
-
-    results = {}
-    for avg in ['macro', 'micro', 'weighted']:
-        results[f"f1_{avg}"] = m.f1_score(labels, preds, zero_division=0, average=avg)
-        results[f"precision_{avg}"] = m.precision_score(labels, preds, zero_division=0, average=avg)
-        results[f"recall_{avg}"] = m.recall_score(labels, preds, zero_division=0, average=avg)
-
-    results["brier_score"] = brier_multi(labels, preds)  # brier_multi returns scalar
-
-    return results
+def mean_ci(values):
+    mean = np.mean(values)
+    low, high = np.percentile(values, [2.5, 97.5])
+    return mean, low, high, f"{mean:.4f} ± {(high-low)/2:.4f}"
 
 
-"""
+
