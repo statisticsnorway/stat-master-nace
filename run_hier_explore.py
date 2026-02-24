@@ -2,16 +2,12 @@ import json
 import argparse
 import pandas as pd
 import numpy as np
-from io import StringIO
-import requests
 import os
-from src.metrics import metrics, df_to_table, metrics_levels
-from src.analyse_preds import wrong_preds_df, all_preds_df
-from matplotlib.backends.backend_pdf import PdfPages
-
-from src.config import HIERARCHY_DATA, RANDOM_STATE, THREAD, DATASETS, MODELS_FASTXT, JSON_FILES, RES_FASTXT_FLAT
-from src.utils.baseline_utils import output_prep, pred_prep
-from src.models.baseline import tune_fasttext_cv, fasttext_train_fn
+import fasttext
+from src.metrics import metrics
+from src.config import HIERARCHY_DATA, RANDOM_STATE, THREAD, DATASETS, JSON_FILES, RES_FASTXT_FLAT,DATA_FX_TR_VAL_TE
+from src.utils.baseline_utils import output_prep, pred_prep,fasttext_dataprep
+from src.models.baseline import tune_fasttext_cv
 from src.utils.utils import seed_everything
 
 
@@ -66,36 +62,35 @@ test = pd.read_csv(
     keep_default_na=False, na_values=[]
     ).fillna("").set_index('orgnr')
 
-
-
-df_hier = pd.read_csv(StringIO(requests.get(HIERARCHY_DATA).text), delimiter=',')
-
-# model running and evaluation
-hier_metrics_train = {}
-df_wrong_res_hier_train={}
-df_wrong_res_hier_test={}
-
-
+df_hier = pd.read_csv(HIERARCHY_DATA, dtype={'code':str}, sep=";", encoding="latin1")
 
 # Fasttext classifier on each hierarchy level
 for hier, hier_level in zip(args.hierarchies, args.levels):
     print(f"\n=== Training on hierarchy: {hier} ===")
-    map_hier = dict(zip(df_hier[df_hier['level'] == hier_level]['code'], 
-                    df_hier[df_hier['level'] == hier_level]['name']))
+    
+    train_file = os.path.join(DATA_FX_TR_VAL_TE, f'train_{hier}')
+
+    train_=fasttext_dataprep(df=train, 
+                      columns=[hier] + args.input_colm, 
+                      df_file=train_file)
     
     # train and pred for each hierarchy    
-    train_input_txt, train_labels, train=pred_prep(train, input_cols=args.input_colm, output_cols=[hier])
-    test_input_txt, test_labels, test=pred_prep(test, input_cols=args.input_colm, output_cols=[hier])
+    test_input_txt, test_labels=pred_prep(test, input_cols=args.input_colm, output_cols=hier)
 
-    
     # hyperparameter tuning with k-fold cv
-    best_params = tune_fasttext_cv(df_train=train, input_cols=args.input_colm, output_cols=[hier], seed=seed_value,thread=thread, n_trials=20)
-    with open(f'{JSON_FILES}best_params{hier}.json', 'w') as f:
+    best_params = tune_fasttext_cv(df_train=train, input_cols=args.input_colm, output_cols=hier, seed=seed_value,thread=thread, n_trials=20)
+    with open(os.path.join(JSON_FILES,f'best_params_{hier}.json'), 'w') as f:
         json.dump(best_params, f, indent=4)
-    
 
-    model = fasttext_train_fn(train_file=f"train_fasttext_hyptune_{hier}.txt", seed=seed_value, thread=thread,
-                            best_params=best_params, model_file=f"{MODELS_FASTXT}model_nace_{hier}.bin") 
+
+    model = fasttext.train_supervised(
+        input=train_file+'.txt',
+        lr=best_params["lr"],
+        epoch=best_params["epoch"],
+        wordNgrams=best_params["wordNgrams"],
+        seed=seed_value, 
+        thread=thread
+    )
                     
     # Predictions on train and test sets
     pred_labels_test, probs_test = model.predict(test_input_txt)
@@ -106,12 +101,6 @@ for hier, hier_level in zip(args.hierarchies, args.levels):
     
     #metrics
     df_results_test = metrics(test_labels_arr, pred_labels_test)
-
-     # analyzing wrong predictions for train and test
-    df_res_test = wrong_preds_df(pred_labels=pred_labels_test, true_labels=test_labels_arr, input_text=test_input_txt, mapping=map_hier)[1]
-
-    # saving the results
-    df_res_test.to_csv(f"{hier}_df_wrong_res_test.csv", index=False)
     df_results_test.to_csv(os.path.join(RES_FASTXT_FLAT,f"{hier}_metrics_test.csv"))
 
 

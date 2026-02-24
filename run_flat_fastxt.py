@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import os
 import fasttext
-from src.metrics import metrics, df_to_table, metrics_levels, mean_ci
+from src.metrics import metrics, df_to_table, metrics_levels, mean_std
 from matplotlib.backends.backend_pdf import PdfPages
 
 from src.config import RANDOM_STATE, THREAD, DATASETS, JSON_FILES, RES_FASTXT_FLAT,DATA_FX_TR_VAL_TE
@@ -15,20 +15,21 @@ from src.utils.utils import seed_everything
 # --- argument parser ---
 parser = argparse.ArgumentParser(description="Run FastText model with different tuning strategies")
 parser.add_argument("--hierarchies", type=str, nargs="+", default=['section', 'division', 'group', 'class', 'nace_21_code'],
-                    help="Specify by str which hierarchy level to train on, e.g. 'level1', 'level2', etc.")
+                    help="Specify by str which hierarchy level to train on.")
 parser.add_argument("--levels", type=int, nargs="+", default=[1,2,3,4,5],
-                    help="Specify by int which hierarchy level to train on, e.g. 'level1', 'level2', etc.")
+                    help="Specify by int which hierarchy level to train on.")
 parser.add_argument("--input_colm", type=str, nargs="+", default=['company_activity','company_name'],
-                    help="Specify which input column to train on, e.g. 'company_activity', 'company_name', etc.")
+                    help="Specify which input column to train on.")
 args = parser.parse_args()
 
 
 # parameters
-seed_list=[1,2,3,4,5, RANDOM_STATE]
+seed_list=[1,2,3,4,RANDOM_STATE]
 thread=THREAD
 hier='nace_21_code'
 hier_level=5
 exp_name='hyptune_cv_company_activity_company_name'
+
 # ===============================
 # Load data
 # ===============================
@@ -84,7 +85,7 @@ for seed_value in seed_list:
     print(f"\n=== Training on seed: {seed_value}===")
 
     # train and pred for each hierarchy    
-    test_input_txt, test_labels=pred_prep(test, input_cols=args.input_colm, output_cols=[hier])
+    test_input_txt, test_labels=pred_prep(test, input_cols=args.input_colm, output_cols=hier)
     
 
     model = fasttext.train_supervised(
@@ -111,10 +112,6 @@ for seed_value in seed_list:
     all_preds.append(df_res)    
 
 
-    #-----------------
-    # CI
-    #-----------------
-
     # -------------  metrics --------------------------
     df_results_test = metrics(test_labels, pred_labels_test)
     print('macro_f1 \n', df_results_test)
@@ -138,6 +135,7 @@ for seed_value in seed_list:
             pdf.savefig(df_to_table(res_cl_test, "Class Results"))
             pdf.savefig(df_to_table(res_gro_test, "Group Results"))
             pdf.savefig(df_to_table(res_div_test, "Division Results"))
+            pdf.savefig(df_to_table(res_sec_test, "Section Results"))
 
         df_results_test.to_csv(os.path.join(RES_FASTXT_FLAT,f"{hier}_metrics_test.csv"))
 
@@ -146,15 +144,19 @@ for seed_value in seed_list:
 df_all_preds=pd.concat(all_preds)
 df_all_preds.to_parquet(os.path.join(RES_FASTXT_FLAT,"preds_flat_fasttext.parquet"))
 
-#CI
-summary = pd.DataFrame({
-    "macro_f1": mean_ci(macro_f1_list),
-    "weighted_f1": mean_ci(weighted_f1_list),
-    "brier": mean_ci(brier_list),
-    "HF1": mean_ci(Hf1_list)
-}, index=["mean", "ci_lower", "ci_upper", "mean±ci"]).T
 
-summary.to_csv(os.path.join(RES_FASTXT_FLAT,f"CI_test.csv"))
+
+#-----------------
+# standard dev.
+#-----------------
+summary = pd.DataFrame({
+    "macro_f1": mean_std(macro_f1_list),
+    "weighted_f1": mean_std(weighted_f1_list),
+    "brier": mean_std(brier_list),
+    "HF1": mean_std(Hf1_list)
+}, index=["mean", "standard deviation"]).T
+
+summary.to_csv(os.path.join(RES_FASTXT_FLAT,f"mean_std.csv"))
 
 
 

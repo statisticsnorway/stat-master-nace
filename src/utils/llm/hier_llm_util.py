@@ -4,14 +4,12 @@ import os
 from pathlib import Path
 from matplotlib.backends.backend_pdf import PdfPages
 import multiprocessing as mp
-from src.parser import parse_args
 
 from sklearn.model_selection import train_test_split
-from src.config import MODELS_FASTXT, DATA_LM_TR_TE, DATA_LM_TR_VAL_TE, RANDOM_STATE, DATA
+from src.config import DATA_LM_TR_TE, DATA_LM_TR_VAL_TE, RANDOM_STATE, DATA
 
 seed = RANDOM_STATE
 
-args = parse_args()
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 
@@ -23,15 +21,15 @@ def splitting_dataset(df:pd.DataFrame, statify_column:str, train_file:str, test_
     
     if val_file==False:
         test=temp
-        train.to_csv(f"{DATA_LM_TR_TE}train.csv")
-        test.to_csv(f"{DATA_LM_TR_TE}test.csv")
+        train.to_csv(f"{DATA_LM_TR_TE}train.csv", index=False)
+        test.to_csv(f"{DATA_LM_TR_TE}test.csv", index=False)
     
     else: 
         # test vs validation
         test, val = train_test_split(temp, test_size=0.5, random_state=seed, stratify=temp[statify_column])
-        val.to_csv(f"{DATA_LM_TR_VAL_TE}val.csv")
-        train.to_csv(f"{DATA_LM_TR_VAL_TE}train.csv")
-        test.to_csv(f"{DATA_LM_TR_VAL_TE}test.csv")
+        val.to_csv(f"{DATA_LM_TR_VAL_TE}val.csv", index=False)
+        train.to_csv(f"{DATA_LM_TR_VAL_TE}train.csv", index=False)
+        test.to_csv(f"{DATA_LM_TR_VAL_TE}test.csv", index=False)
     
     return (train, val, test) if val_file else (train, test)
     
@@ -53,10 +51,13 @@ def build_prompt(descriptions, next_level, meta, map_code_name):
         f"Oppgave:\nVelg den mest passende '{next_level}' klassen.{parent_str}\n\n"
         f"Mulige {next_level} klasser:\n"
         f"{options_str}\n\n"
-        "Svar med nøyaktig ÉN kode fra listen ovenfor og velg KUN koden.\n"
-        "Svarformat:\n"
-        "<KODE>\n"
-        "Ikke skriv ord, forklaring, punktum eller andre tegn.")
+        "Regler:\n"
+        "- Du må velge nøyaktig ÉN kode fra listen over og velg KUN koden.\n"
+        #"- Hvis teksten ikke inneholder tilstrekkelig informasjon til å avgjøre riktig klasse, svar: UKJENT.\n"
+        "- Svaret skal kun bestå av selve koden \n"# eller ordet UKJENT med blokkbokstaver.\n"
+        "- Ikke inkluder navn, forklaring, punktum eller andre tegn.\n\n"
+
+        "Svar:")
     return prompts
 
 
@@ -70,7 +71,7 @@ def extract_class(output_text:str, current_level:str, parent:str, children:list[
 
     if output_text is None:
         print(f"No code found in model output:\n{output_text}", flush=True)
-        return None
+        return 'UKJENT'
 
     # extract matches   
     if output_text in children:
@@ -85,6 +86,7 @@ def extract_class(output_text:str, current_level:str, parent:str, children:list[
     print(f"raw output that needs to be extracted: {output_text}")
     #regex extraction
     escaped_codes = [re.escape(code) for code in children]
+    #escaped_codes.append(re.escape("UKJENT"))
     print('----------- escaped codes \n', escaped_codes)
     if current_level != 'root':
         pattern = r"\b(" + "|".join(escaped_codes) + r")\b"
@@ -95,6 +97,7 @@ def extract_class(output_text:str, current_level:str, parent:str, children:list[
         
     elif current_level == 'root':
         pattern = r"(?:^|\s|:)<?(" + "|".join(escaped_codes) + r")>?(?:\s|$)"
+        #escaped_codes.append(re.escape("UKJENT"))
         match = re.search(pattern, output_text)
         if match:
             output_text = match.group(1)
@@ -109,7 +112,7 @@ def extract_class(output_text:str, current_level:str, parent:str, children:list[
     print(
         f"Failed to extract valid code at level '{current_level}' from output: '{output_text}'",flush=True)
         
-    return None
+    return 'UKJENT'
 
 
 
@@ -425,7 +428,7 @@ def validate_and_assign(
         if pred in children:
             label = pred
         else:
-            label = None
+            label = 'UKJENT'
 
         if current_level != 'class':
             final_code, final_level = auto_descend(
@@ -449,5 +452,5 @@ def validate_and_assign(
 if __name__=='__main__':
     df = pd.read_csv(f"{DATA}data_prep_lm.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
     # Getting the train, val and test sets for the LM model
-    splitting_dataset(df=df, statify_column='nace_21_code', train_file='train', test_file='test', seed=seed, val_file=False)
+    #splitting_dataset(df=df, statify_column='nace_21_code', train_file='train', test_file='test', seed=seed, val_file=False)
     splitting_dataset(df=df, statify_column='nace_21_code', train_file='train', test_file='test', seed=seed, val_file=True)

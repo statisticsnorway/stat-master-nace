@@ -9,11 +9,9 @@ import json
 from matplotlib.backends.backend_pdf import PdfPages
 from vllm import LLM, SamplingParams
 from src.parser import parse_args
-from src.config import HIERARCHY_DATA, RES_LM
-from src.metrics import metrics_levels, df_to_table
+from src.config import HIERARCHY_DATA, RES_LM, JSON_FILES
 from src.utils.llm.hier_llm_util import (
     llm_call,
-    sections_df_hier,
     derive_hier_names,
     derive_hier,
     mapping_code_names,
@@ -23,21 +21,10 @@ from src.utils.llm.hier_llm_util import (
     validate_and_assign,
 )
 
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+#os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 args = parse_args()
-"""
-# ================= DEBUG CHECKS =================
-print("Starting hierarchical classification")
 
-# Check that input files exist
-assert os.path.exists(args.test_data_file), f"{args.test_data_file} not found!"
-assert os.path.exists(HIERARCHY_DATA), f"{HIERARCHY_DATA} not found!"
-print(f"Found test data file: {args.test_data_file}")
-print(f"Found hierarchy file: {HIERARCHY_DATA}")
-# ==============================================
-
-"""
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 
@@ -64,24 +51,21 @@ def run_classify_nace(tokenizer,
         hierarchy,
         map_code_names,
         sampling_params, 
-        input_file:str=args.test_data_file, 
+        input_file:str=os.path.join(RES_LM, args.test_data_file), 
         input:str|list[str] = ["company_activity", "company_name"],
-        batch_size=1,#args.batch_size, 
-        output_file:str=args.output_file_hier,
+        output_file:str=os.path.join(RES_LM, args.output_file_hier),
         levels=["root", "section", "division", "group", "class", "subclass"],
-        checkpoint_file=args.checkpoint_file_hier #"results/checkpoint_hier.json",
+        checkpoint_file=os.path.join(JSON_FILES, args.checkpoint_file_hier),
         ):
     """current level is the level that presents possible classes at that level that can be classified. 
         next_level is the level that is being classified"""
-    start_idx=None
-    if os.path.exists(f"{RES_LM}{checkpoint_file}"):
-        with open(f"{RES_LM}{checkpoint_file}", "r") as f:
+    start_row=0
+    if os.path.exists(checkpoint_file):
+        with open(checkpoint_file, "r") as f:
             checkpoint = json.load(f)
-            start_idx=checkpoint.get('last_idx')
+            start_row=checkpoint.get('last_row')
 
     map_hier_indx = {level: i for i, level in enumerate(levels)}
-
-    """
     reader = pd.read_csv(input_file, 
                              dtype={
                                  'company_activity':str,
@@ -95,34 +79,10 @@ def run_classify_nace(tokenizer,
                                  keep_default_na=False, 
                                  na_values=[],
                                  chunksize=args.batch_size,
-                                 index_col=0,
+                                 index_col='orgnr',
+                                 skiprows=range(1, start_row+1),
                                 )
-    for i, batch in enumerate(reader):
-    """
-    input_df = pd.read_csv(input_file, 
-                           dtype={'company_activity':str,
-                                  'company_name':str,
-                                  'division':str, 
-                                  'group':str, 
-                                  'class':str, 
-                                  'nace_21_code':str,
-                                  'nace_21_description_nb':str}, 
-                            keep_default_na=False, 
-                            na_values=[], 
-                            index_col=0).fillna("")
-    
-    input_df=input_df.iloc[:10]
-    for i_row in range(len(input_df)):
-        
-        batch = input_df.iloc[i_row:i_row + batch_size].copy()
-        # continuing from last company processed
-        if start_idx is not None and batch.index.max() <= start_idx:
-            continue
-        if start_idx is not None:
-            batch = batch[batch.index > start_idx]
-            if batch.empty:
-                continue
-        
+    for i, batch in enumerate(reader):        
         batch = batch.fillna("")
 
         if 'pred_subclass' not in batch.columns:
@@ -192,15 +152,15 @@ def run_classify_nace(tokenizer,
             assert list(batch.columns) == ALL_COLUMNS, f"Schema mismatch: {batch.columns}"
             # Write to CSV
             batch.to_csv(
-                f'{RES_LM}{output_file}',
+                output_file,
                 mode='a',
-                header=not os.path.exists(f'{RES_LM}{output_file}'),
+                header=not os.path.exists(output_file),
                 index=True
             )
             
             # update checkpoint
-            with open(f"{RES_LM}{checkpoint_file}", "w") as f:
-                json.dump({"last_idx": int(batch.index.max())}, f)
+            with open(checkpoint_file, "w") as f:
+                json.dump({"last_row": int(start_row)}, f)
     return None
 
         
@@ -215,18 +175,18 @@ if __name__ == "__main__":
         tokenizer=1
         sampling_params=1
     else:
-        model=LLM(args.model_name,
-                    #max_model_len= 65536,
-                    tensor_parallel_size=num_visible) # bigger models may require more GPUs and higher tensor parallel size
+        model=LLM(
+            args.model_name,
+            tensor_parallel_size=num_visible) # bigger models may require more GPUs and higher tensor parallel size
+        
         tokenizer=model.get_tokenizer()
         
         sampling_params = SamplingParams(
-            temperature=0,
+            temperature=0, #deterministic sampling
             max_tokens=20,
             logprobs=1
             )
    
-    #SECTIONS = sections_df_hier(df_hier)
     map_sec = dict(zip(df_hier[df_hier['level']==2]["code"], df_hier[df_hier['level']==2]["parentCode"]))
     map_name = df_hier[['code', 'name']].set_index('code')['name'].to_dict()
     
@@ -239,14 +199,7 @@ if __name__ == "__main__":
     run_classify_nace(
         tokenizer=tokenizer, 
         llm=model, 
-        #sections=SECTIONS, 
         hierarchy=HIERARCHY, 
         map_code_names=map_code_names,
         sampling_params=sampling_params)
-    """
-    res_sub, res_cl, res_gro, res_div = metrics_levels(target=df_with_res['nace_21_code'], pred=df_with_res['pred_subclass']) # type: ignore
-    with PdfPages(f"{RES_LM}test_hier_results.pdf") as pdf:
-        pdf.savefig(df_to_table(res_sub, "Subclass Results"))
-        pdf.savefig(df_to_table(res_cl, "Class Results"))
-        pdf.savefig(df_to_table(res_gro, "Group Results"))
-        pdf.savefig(df_to_table(res_div, "Division Results"))"""
+    

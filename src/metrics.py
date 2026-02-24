@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy import stats
 
 import sklearn.metrics as m
 from sklearn.preprocessing import OneHotEncoder 
@@ -20,7 +21,7 @@ def get_ancestors(node, map_sec):
         cl = parts[0] + '.' + parts[1][:-1]
         grp = parts[0] + '.' + parts[1][:-2]
         div = parts[0]
-        sec = map_sec[parts[0]]
+        sec = map_sec[div]
     else:
         ValueError('Not a valid code')
     return {node, cl, grp, div, sec}
@@ -76,13 +77,13 @@ def metrics(target, pred):
             #"precision": m.precision_score(target, pred, zero_division=np.nan, average=avg),
         }
     results['score'] = {'brier_score':brier_multi(target, pred)}
-
+    print(target)
+    print(len(target[0]))
     if len(target[0]) == 6:
         results['score']['HF1'] = hierarchical_f1(target,pred)
     
     # Converts to DataFrame
     df_results = pd.DataFrame(results).T  # .T transposes so metrics are rows
-    #df_results = df_results.set_index(np.array(['macro', 'micro', 'weighted', 'score']))
     df_results.index.name = "average"
     return df_results
 
@@ -95,6 +96,7 @@ def metrics_levels(target:list[str], pred:list[str], map_sec=map_sec):
     Aggregates subclasses into higher hierarchies and evaluates the metrics on each hierarchy level.
     """
     target, pred = np.array(target), np.array(pred)
+    print('target: ', target, '\n pred: ',pred)
 
     cl_t = np.array([s[:-1] for s in target])
     cl_p = np.array([s[:-1] for s in pred])
@@ -117,20 +119,28 @@ def metrics_levels(target:list[str], pred:list[str], map_sec=map_sec):
     return res_sub, res_cl, res_gro, res_div, res_sec
 
 def df_to_table(df, title=""):
-    fig, ax = plt.subplots(figsize=(8, 4))
+    fig, ax = plt.subplots(figsize=(10, 5))
     ax.axis('off')
-    ax.axis('tight')
-    ax.table(cellText=df.values, 
-             colLabels=df.columns, 
-             rowLabels=df.index, 
-             loc='center')
-    plt.title(title)
+
+    table = ax.table(
+        cellText=df.values,
+        colLabels=df.columns,
+        rowLabels=df.index,
+        loc='center'
+    )
+
+    table.auto_set_font_size(False)
+    table.set_fontsize(8)
+    table.scale(1.2, 1.2)
+
+    ax.set_title(title)
+    fig.tight_layout()
+
     return fig
 
-def mean_ci(values):
-    mean = np.mean(values)
-    low, high = np.percentile(values, [2.5, 97.5])
-    return mean, low, high, f"{mean:.4f} ± {(high-low)/2:.4f}"
 
-
+def mean_std(values):
+    mean=np.mean(values)
+    std=np.std(values,ddof=1)
+    return mean, std
 

@@ -19,17 +19,23 @@ def build_prompt(descriptions, options):
     
     for indx in descriptions:
         prompts[indx]=(
-        f"Bedriftsbeskrivelse:\n{descriptions[indx].strip()}\n\n"
+        f"Bedriftsbeskrivelse og navn:\n{descriptions[indx].strip()}\n\n"
         "Oppgave:\nVelg den NACE-underklassen som passer best.\n\n"
-        "Mulige NACE-klasser:\n"
-        f"{options_str}\n\n"
-        "Svar mednøyaktig ÉN kode fra listen ovenfor og velg KUN koden (for eksempel: 01.110).\n"
-        "Ikke inkluder navn, forklaring eller andre tegn.")
+        "Gyldige NACE-klasser:\n"
+        f"{options_str}\n\n"    
+        "Regler:\n"
+        "- Du må velge nøyaktig ÉN kode fra listen over og velg KUN koden (for eksempel: 01.110).\n"
+        #"- Hvis teksten ikke inneholder tilstrekkelig informasjon til å avgjøre riktig klasse, svar: UKJENT.\n"
+        "- Svaret skal kun bestå av selve koden \n" # eller ordet UKJENT med blokkbokstaver.\n"
+        "- Ikke inkluder navn, forklaring, punktum eller andre tegn.\n\n"
+
+        "Svar:")
     return prompts
 
 
 def extract_class(output_text, subclasses_code, map_code_names):
     escaped_codes = [re.escape(code) for code in subclasses_code]
+    #escaped_codes.append(re.escape("UKJENT"))
     pattern = r"\b(" + "|".join(escaped_codes) + r")\b"
 
     # Removeing "assistant" prefix if present
@@ -39,7 +45,7 @@ def extract_class(output_text, subclasses_code, map_code_names):
 
     if output_text is None:
         print(f"No code found in model output:\n{output_text}", flush=True)
-        return f"No code found in model output"
+        return "UKJENT"
     
     if output_text not in subclasses_code:
         match = re.search(pattern, output_text)
@@ -47,12 +53,13 @@ def extract_class(output_text, subclasses_code, map_code_names):
         # if the output is code and name compines
         if output_text in map_code_names:
             output_text = map_code_names[output_text]
+        #elif output_text == 'UKJENT':
+        #    return 'UKJENT'
         elif match:
             output_text = match.group(1)
         else:
             print(f"####### {output_text} not in HIERARCHY", flush=True)
-            return None
-
+            return 'UKJENT'
     return output_text
 
 

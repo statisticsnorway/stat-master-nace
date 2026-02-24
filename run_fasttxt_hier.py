@@ -1,120 +1,164 @@
 import pandas as pd
-import numpy as np
 import json
 import os
-from io import StringIO
-import requests
-from src.metrics import df_to_table, metrics_levels
-from src.analyse_preds import wrong_preds_df
+from src.metrics import df_to_table, metrics_levels, mean_std
 from matplotlib.backends.backend_pdf import PdfPages
 
-from src.config import HIERARCHY_DATA, RANDOM_STATE,THREAD, DATA, DATA_FX_TR_TE, DATA_FX_TR_VAL_TE, RES_HIER_M, JSON_FILES
-from src.utils.baseline_utils import fasttext_input, output_prep, pred_prep
+from src.config import RANDOM_STATE,THREAD, DATA_FX_TR_VAL_TE, JSON_FILES, DATASETS, RES_HIER_FASTXT
+from src.utils.baseline_utils import pred_prep
 from src.models.baseline_hier import train_hier_fasttext, predict_hier_fasttext, load_hier_fasttext_models
 from src.utils.utils import seed_everything
+from src.metrics import metrics, metrics_levels
 
-seed_value=RANDOM_STATE
+
+seed_list=[1,2,3,4,RANDOM_STATE]
 thread=THREAD
-seed_everything(seed_value)
-
-#df = pd.read_csv(f"{DATA}data_preprocessed.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
-train_ = pd.read_csv(f"{DATA_FX_TR_VAL_TE}train.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
-test_ = pd.read_csv(f"{DATA_FX_TR_VAL_TE}test.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
-val_ = pd.read_csv(f"{DATA_FX_TR_VAL_TE}val.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
-
-df_hier = pd.read_csv(HIERARCHY_DATA, dtype={'code':str}, sep=";", encoding="latin1")
-#pd.read_csv(StringIO(requests.get(HIERARCHY_DATA).text), delimiter=';')
-
-hierarchies = ["section", "division", "group", "class", "nace_21_code"]
-levels = [1, 2, 3, 4, 5]
-hier_metrics_train = {}
-df_wrong_res_hier_train={}
-hier_metrics_test = {}
-df_wrong_res_hier_test={}
-
-
-
+exp_name='hyptune_cv_company_activity_company_name'
+hierarchies = ["root", "section", "division", "group", "class", "nace_21_code"]
 input_col = ["company_activity", "company_name"]
 
-# train and pred for each hierarchy
-#train_, test_, val_ = fasttext_input(
-#    df=df, columns=["nace_21_code"]+input_col, statify_column="nace_21_code", seed=seed_value,
-#train_file=f"train_hier_fasttext", test_file=f"test_hier_fasttext", val_file=f"val_hier_fasttext")
 
+# ===============================
+# Load data
+# ===============================
+dtype_map = {
+    'company_activity': str,
+    'company_name': str,
+    'company_purpose': str,
+    'nace_21_code': str,
+    'division':str, 
+    'group':str, 
+    'class':str,
+    'nace_21_description_nb': str
+}
 
-train_input_txt, train_labels, train=pred_prep(train_, input_cols=input_col, output_cols=["nace_21_code"])
-test_input_txt, test_labels, test=pred_prep(test_, input_cols=input_col, output_cols=["nace_21_code"])
-val_input_txt, val_labels, val=pred_prep(val_, input_cols=input_col, output_cols=["nace_21_code"])
+train = pd.read_csv(
+    os.path.join(DATASETS, f"train.csv"),
+    dtype=dtype_map,
+    keep_default_na=False, na_values=[]
+).fillna("").set_index('orgnr')
 
+train_file = os.path.join(DATA_FX_TR_VAL_TE, f"train_{exp_name}.txt")
 
-# hyperparameter tuning with k-fold cv
+"""
+val = pd.read_csv(
+    os.path.join(DATASETS, f"val.csv"),
+    dtype=dtype_map,
+    keep_default_na=False, na_values=[]
+).fillna("").set_index('orgnr')
+"""
 
-if os.path.exists(f"{JSON_FILES}best_paramsdivision.json"):
-    with open(f"{JSON_FILES}best_paramsdivision.json", "r") as f:
+test = pd.read_csv(
+    os.path.join(DATASETS, f"test.csv"),
+    dtype=dtype_map,
+    keep_default_na=False, na_values=[]
+    ).fillna("").set_index('orgnr')
+
+# ===============================
+# initialising lists
+# ===============================
+macro_f1_list = []
+weighted_f1_list = []
+brier_list = []
+Hf1_list = []
+all_preds=[]
+
+test_input_txt, test_labels=pred_prep(test, input_cols=input_col, output_cols="nace_21_code")
+print('test labels', test_labels)
+if os.path.exists(os.path.join(JSON_FILES,'best_paramssection.json')):
+    with open(os.path.join(JSON_FILES,'best_paramssection.json'), "r") as f:
         best_params = json.load(f)
 else:
     print("Load parameters on run_hier_explore.py script")
 
-if os.path.exists(f"{JSON_FILES}fasttext_hier_model_paths.json"):
-    with open(f"{JSON_FILES}fasttext_hier_model_paths.json", "r") as f:
-        models_paths = json.load(f)
-        model=load_hier_fasttext_models(models_paths)
-else:
-    model = train_hier_fasttext(train, input_col, label_hiers=hierarchies, seed=seed_value, best_params=best_params, thread=thread)
+# ===============================
+# running model
+# ===============================
+
+for seed_value in seed_list:
+    print(f"\n=== Training on seed: {seed_value}===")
+    seed_everything(seed_value)
+    
+
+    # loading parameters
+    
+    """if os.path.exists(os.path.join(JSON_FILES,"fasttext_hier_model_paths.json")):
+        with open(os.path.join(JSON_FILES,"fasttext_hier_model_paths.json"), "r") as f:
+            models_paths = json.load(f)
+            models=load_hier_fasttext_models(models_paths)
+    else:"""
+    models_paths = train_hier_fasttext(train, input_col, label_hiers=hierarchies, seed=seed_value, best_params=best_params, thread=thread)
+    models=load_hier_fasttext_models(models_paths)
 
 
-map_hier = dict(zip(df_hier[df_hier['level'] == 5]['code'], 
-                df_hier[df_hier['level'] == 5]['name']))
+    # Predictions on train and test sets
+    pred_labels_test,probs_test = predict_hier_fasttext(models, test_input_txt)
+    print('preds ', pred_labels_test)
+    df_res = pd.DataFrame({
+        'preds':pred_labels_test,
+        'pred_probs':probs_test,
+        'seed_value': seed_value,
+        },
+        index=test.index)
 
-# Predictions on train and test sets
-pred_labels_train = predict_hier_fasttext(model, train_input_txt)
-pred_labels_test = predict_hier_fasttext(model, test_input_txt)
+    all_preds.append(df_res)    
 
-# preparing output
-pred_labels_train = output_prep(pred_labels_train)
-train_labels_arr = np.array(train_labels)
-pred_labels_test = output_prep(pred_labels_test)
-test_labels_arr = np.array(test_labels)
+    # ===============================
+    # metrics
+    # ===============================
+    # -------------  metrics --------------------------
+    df_results_test = metrics(test_labels, pred_labels_test)
+    print('macro_f1 \n', df_results_test)
+    macro_f1 = df_results_test.loc['macro', 'f1']
+    weighted_f1 = df_results_test.loc['weighted', 'f1']
+    brier = df_results_test.loc['score', 'brier_score']
+    Hf1 = df_results_test.loc['score', 'HF1']
 
-# hier metrics for subclass
-res_sub_tr, res_cl_tr, res_gro_tr, res_div_tr = metrics_levels(target=train_labels_arr, pred=pred_labels_train)
-res_sub_te, res_cl_te, res_gro_te, res_div_te = metrics_levels(target=test_labels_arr, pred=pred_labels_test)
+    macro_f1_list.append(macro_f1)
+    weighted_f1_list.append(weighted_f1) 
+    brier_list.append(brier)
+    Hf1_list.append(Hf1)
 
+    if seed_value == RANDOM_STATE:
+        res_sub_test, res_cl_test, res_gro_test, res_div_test, res_sec_test = metrics_levels(target=test_labels, pred=pred_labels_test)
+        with PdfPages(os.path.join(RES_HIER_FASTXT,f"test_hier_results.pdf")) as pdf:
+            pdf.savefig(df_to_table(res_sub_test, "Subclass Results"))
+            pdf.savefig(df_to_table(res_cl_test, "Class Results"))
+            pdf.savefig(df_to_table(res_gro_test, "Group Results"))
+            pdf.savefig(df_to_table(res_div_test, "Division Results"))
+            pdf.savefig(df_to_table(res_sec_test, "Section Results"))
 
-with PdfPages(f"{RES_HIER_M}train_hier_results_sub.pdf") as pdf:
-    pdf.savefig(df_to_table(res_sub_tr, "Subclass Results"))
-    pdf.savefig(df_to_table(res_cl_tr, "Class Results"))
-    pdf.savefig(df_to_table(res_gro_tr, "Group Results"))
-    pdf.savefig(df_to_table(res_div_tr, "Division Results"))
+# ===============================
+# all seeds results
+# ===============================
+# all preds saved to a file
+df_all_preds=pd.concat(all_preds)
 
-with PdfPages(f"{RES_HIER_M}test_hier_results_sub.pdf") as pdf:
-    pdf.savefig(df_to_table(res_sub_te, "Subclass Results"))
-    pdf.savefig(df_to_table(res_cl_te, "Class Results"))
-    pdf.savefig(df_to_table(res_gro_te, "Group Results"))
-    pdf.savefig(df_to_table(res_div_te, "Division Results"))
+# Ensure directory exists
+os.makedirs(RES_HIER_FASTXT, exist_ok=True)
 
-# analyzing wrong predictions for train and test
-df_res_train = wrong_preds_df(pred_labels_train, train_labels_arr, train_input_txt, map_hier)
-df_res_test = wrong_preds_df(pred_labels_test, test_labels_arr, test_input_txt, map_hier)
-
-# saving the results
-df_res_train.to_csv(f"{RES_HIER_M}hier_df_wrong_res_train.csv", index=False)
-res_cl_tr.to_csv(f"{RES_HIER_M}hier_metrics_train.csv")
-df_res_test.to_csv(f"{RES_HIER_M}hier_df_wrong_res_test.csv", index=False)
-res_cl_te.to_csv(f"{RES_HIER_M}hier_metrics_test.csv")
-
-# printing them
-
-print('df_results_train')
-print(res_cl_tr)
-print('df_results_test')
-print(res_cl_te)
-print("df_res_train")
-print(df_res_train)
-print("df_res_test")
-print(df_res_test)
+try:
+    # Try saving as Parquet
+    df_all_preds.to_parquet(os.path.join(RES_HIER_FASTXT, "preds_hier_fasttext.parquet"))
+    print("Saved predictions as Parquet")
+except Exception as e:
+    print(f"Parquet save failed: {e}")
+    # Fall back to CSV
+    df_all_preds.to_csv(os.path.join(RES_HIER_FASTXT, "preds_hier_fasttext.csv"), index=True)
+    print("Saved predictions as CSV instead")
 
 
+#-----------------
+# standard dev.
+#-----------------
+summary = pd.DataFrame({
+    "macro_f1": mean_std(macro_f1_list),
+    "weighted_f1": mean_std(weighted_f1_list),
+    "brier": mean_std(brier_list),
+    "HF1": mean_std(Hf1_list)
+}, index=["mean", "standard deviation"]).T
+
+summary.to_csv(os.path.join(RES_HIER_FASTXT,f"mean_std.csv"))
 
 
     

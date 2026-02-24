@@ -23,7 +23,7 @@ def fasttext_dataprep(df: pd.DataFrame, columns:list[str], df_file:str)-> pd.Dat
 
 
 def pred_prep(df:pd.DataFrame, input_cols:list[str], output_cols:str)->list[str]:
-    labels = df[output_cols].astype(str).to_numpy()[:, 0]
+    labels = df[output_cols].astype(str).to_numpy()#[:, 0]
     if len(input_cols) >1:
         input_txt = df[input_cols].astype(str).agg(' '.join, axis=1).tolist()
         #df = df.copy()

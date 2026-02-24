@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=thesis
 #SBATCH --account=ec403
-#SBATCH --time=20:30:00
+#SBATCH --time=3:30:00
 #SBATCH --partition=accel    # To use the accelerator nodes
-#SBATCH --gpus=1
 #SBATCH --nodes=1
+#SBATCH --gres=gpu:1
 #SBATCH --mem-per-cpu=4G
 #SBATCH --cpus-per-task=4
 

@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from src.config import RES_FASTXT, RES_HIER_M, DATA_FX_TR_VAL_TE, RES_HIER_M
+from src.config import RES_HIER_M, DATA_FX_TR_VAL_TE, RES_HIER_M
 
 
 def wrong_preds_df(pred_labels:list[str], true_labels:list[str], input_text:list[str], mapping:dict)->pd.DataFrame:

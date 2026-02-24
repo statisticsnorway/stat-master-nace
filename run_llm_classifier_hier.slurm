@@ -1,15 +1,16 @@
 #!/bin/bash
-#SBATCH --job-name=thesis
+#SBATCH --job-name=nace_classifier_hier
 #SBATCH --account=ec403
-#SBATCH --time 10:30:00
+#SBATCH --time 02:30:00
 #SBATCH --partition=accel    # To use the accelerator nodes
 #SBATCH --nodes=1
-#SBATCH --gpus-per-node=4
 #SBATCH --ntasks=1
-#SBATCH --mem-per-cpu=32G
+#SBATCH --mem=32G
+#SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
+#SBATCH --exclude=gpu-14,gpu-5,gpu-11,gpu-7
 
-# NB: this script should be run with "sbatch run_classifier.slurm"!
+# NB: this script should be run with "sbatch run_classifier_hier.slurm"!
 # See https://www.uio.no/english/services/it/research/platforms/edu-research/help/fox/jobs/submitting.md
 
 source ~/.bashrc
@@ -22,7 +23,7 @@ set -o nounset
 module purge
 module use -a /fp/projects01/ec30/software/easybuild/modules/all/
 
-module load nlpl-nlptools/01-foss-2024a-Python-3.12.3 #Empty or non-existent file
+module load nlpl-nlptools/01-foss-2024a-Python-3.12.3 
 
 module load nlpl-scipy-ecosystem/01-foss-2024a-Python-3.12.3
 module load nlpl-llmtools/01-foss-2024a-Python-3.12.3
@@ -30,10 +31,13 @@ module load nlpl-sentence-transformers/5.1.1-foss-2024a-Python-3.12.3
 module load nlpl-tokenizers/0.21.4-foss-2024a-Python-3.12.3
 module load nlpl-vllm/0.8.2-foss-2024a-Python-3.12.3
 
+nvidia-smi
 
-export TRITON_CACHE_DIR="./triton_cache"
-export HF_HOME="./hf_cache"
-export VLLM_CACHE_ROOT="./vllm_cache"
+
+export CACHE_ROOT=/cluster/work/projects/ec403/ec-minashe-master
+export TRITON_CACHE_DIR=$CACHE_ROOT/triton_cache
+export HF_HOME=$CACHE_ROOT/hf_cache
+export VLLM_CACHE_ROOT=$CACHE_ROOT/vllm_cache
 
 export HF_TOKEN="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" 
 
@@ -46,6 +50,7 @@ export LOCAL_RANK=$SLURM_LOCALID
 export LC_ALL=en_US.UTF-8
 
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
-
+export VLLM_DISABLE_CUDAGRAPH=1 # added
+export CUDA_LAUNCH_BLOCKING=1
 
 srun --label python3 llm_classifier_hier.py $@

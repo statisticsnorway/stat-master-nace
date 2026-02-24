@@ -117,10 +117,7 @@ val_ = fasttext_dataprep(
 # ===============================
 # Prepare prediction inputs
 # ===============================
-train_input_txt, train_labels, train_df = pred_prep(
-    train_, args.input_colm, 'nace_21_code')
-
-val_input_txt, val_labels, val_df = pred_prep(
+val_input_txt, val_labels = pred_prep(
     val_, args.input_colm, 'nace_21_code')
 
 
@@ -209,10 +206,7 @@ if args.evaluate_test:
         df_file=f"{test_file}.txt"
     )
 
-    test_input_txt, test_labels, _ = pred_prep(
-        test_, args.input_colm, 'nace_21_code')
-
-    test_input_txt, test_labels, _ = pred_prep(
+    test_input_txt, test_labels= pred_prep(
         test_, args.input_colm, 'nace_21_code')
 
     pred_test, _ = model.predict(test_input_txt)
