@@ -3,6 +3,7 @@ from pathlib import Path
 import re
 from matplotlib.backends.backend_pdf import PdfPages
 import multiprocessing as mp
+import math
 from src.parser import parse_args
 
 from src.config import RANDOM_STATE
@@ -11,7 +12,6 @@ seed = RANDOM_STATE
 
 args = parse_args()
 PROJECT_ROOT = Path(__file__).resolve().parent
-
 
 def build_prompt(descriptions, options):
     prompts={}
@@ -28,7 +28,6 @@ def build_prompt(descriptions, options):
         #"- Hvis teksten ikke inneholder tilstrekkelig informasjon til å avgjøre riktig klasse, svar: UKJENT.\n"
         "- Svaret skal kun bestå av selve koden \n" # eller ordet UKJENT med blokkbokstaver.\n"
         "- Ikke inkluder navn, forklaring, punktum eller andre tegn.\n\n"
-
         "Svar:")
     return prompts
 
@@ -62,28 +61,42 @@ def extract_class(output_text, subclasses_code, map_code_names):
             return 'UKJENT'
     return output_text
 
-
-def llm_call_fake(tokenizer, llm, sampling_params, prompts, subclasses_code, map_code_names):
+def compute_code_prob(nace_code, logprob_list):
     """
-    Fake LLM call that deterministically returns a valid option
-    for each prompt, keyed by the original batch index.
+    Returns probability of extracted code.
+    If code is 'UKJENT', returns 0.
     """
 
-    prompt_ids = list(prompts.keys())
-    prompt_texts = list(prompts.values())
+    if nace_code == "UKJENT":
+        return 0.0
 
-    results = {}
+    total_logprob = 0.0
+    reconstructed = ""
 
-    for idx, p in zip(prompt_ids, prompt_texts):
-        options = subclasses_code
+    for token_dict in logprob_list:
+        logprob_obj = list(token_dict.values())[0]
+        token = logprob_obj.decoded_token
 
-        # Pick first valid option for reproducibility
-        if isinstance(options, dict):
-            results[idx] = list(options.keys())[-1]
-        else:
-            results[idx] = options[0]
+        # stop at special end token
+        if token == "<|im_end|>":
+            break
 
-    return results
+        reconstructed += token
+
+        # Only accumulate logprob if token is part of the code
+        if nace_code.startswith(reconstructed):
+            total_logprob += logprob_obj.logprob
+
+        # If reconstruction no longer matches code then stop
+        elif not nace_code.startswith(reconstructed):
+            break
+
+    # If we never fully reconstructed the code → probability 0
+    if reconstructed.strip() != nace_code:
+        return 0.0
+
+    return math.exp(total_logprob)
+
 
 def llm_call(tokenizer, llm, sampling_params, prompts, subclasses_code, map_code_names):
     """
@@ -123,12 +136,17 @@ def llm_call(tokenizer, llm, sampling_params, prompts, subclasses_code, map_code
     for idx, out in zip(prompt_ids, outputs):
         raw = out.outputs[0].text
         probs = out.outputs[0].logprobs
+
         print('--------- raw prompt ------------ \n', raw, flush=True)
+        print('--------- raw probs ------------ \n', probs, flush=True)
+
+        
         nace_code = extract_class(output_text=raw, subclasses_code=subclasses_code, map_code_names=map_code_names)
+        nace_probs = compute_code_prob(nace_code=nace_code,logprob_list=probs)
         results[idx]=nace_code
-        results_probs[idx]=probs
+        results_probs[idx]=nace_probs
         #print('############### result logits \n', results_probs, flush=True) #----------------- legge til sannsynlighetene i run functionen
-    return results
+    return results, results_probs
 
 
 def mapping_code_names(df: pd.DataFrame, subclass_col:str, map_name:dict):
@@ -153,14 +171,17 @@ def mapping_code_names(df: pd.DataFrame, subclass_col:str, map_name:dict):
 
 def validate_and_assign(
     preds,
+    probs,
     batch_results,
 ):
     for idx in preds:
         pred=preds[idx]
+        prob=probs[idx]
         # normalization
         if isinstance(pred, list):
             pred = pred[0]
 
         batch_results[idx]['subclass'] = pred
+        batch_results[idx]['subclass_probs'] = prob
     return batch_results
 

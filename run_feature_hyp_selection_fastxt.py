@@ -46,7 +46,7 @@ seed_everything(seed_value)
 
 
 cols_name = "_".join(sorted(args.input_colm))
-exp_name = f"{args.stage}_{args.mode}_{cols_name}"
+exp_name = f"{args.stage}_{args.mode}_{cols_name}_clean"
 print(f"\nRunning experiment: {exp_name}\n")
 
 
@@ -84,13 +84,13 @@ dtype_map = {
 
 # --- Import data ---
 train = pd.read_csv(
-    os.path.join(DATASETS, f"train.csv"),
+    os.path.join(DATA_FX_TR_VAL_TE, f"train.csv"),
     dtype=dtype_map,
     keep_default_na=False, na_values=[]
 ).fillna("").set_index('orgnr')
 
 val = pd.read_csv(
-    os.path.join(DATASETS, f"val.csv"),
+    os.path.join(DATA_FX_TR_VAL_TE, f"val.csv"),
     dtype=dtype_map,
     keep_default_na=False, na_values=[]
 ).fillna("").set_index('orgnr')
@@ -195,7 +195,7 @@ if args.evaluate_test:
     
     test_file  = os.path.join(DATA_FX_TR_VAL_TE, f"test_{exp_name}")
     test = pd.read_csv(
-    os.path.join(DATASETS, f"test.csv"),
+    os.path.join(DATA_FX_TR_VAL_TE, f"test.csv"),
     dtype=dtype_map,
     keep_default_na=False, na_values=[]
     ).fillna("").set_index('orgnr')

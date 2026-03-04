@@ -1,6 +1,6 @@
 import argparse
 import os
-from src.config import RES_LM, DATASETS
+from src.config import DATA_LM_TR_VAL_TE
 # using DATA_BR_TRAIN as validation set to tune hyperparameters.
 
 
@@ -8,8 +8,8 @@ def parse_args():
     MODEL ="Qwen/Qwen2.5-7B-Instruct"
 
     argparser = argparse.ArgumentParser()
-    argparser.add_argument("-vd", "--val_data_file", type=str, default=os.path.join(DATASETS, 'val.csv'))
-    argparser.add_argument("-td", "--test_data_file", type=str, default=os.path.join(DATASETS, 'test.csv'))
+    argparser.add_argument("-vd", "--val_data_file", type=str, default=os.path.join(DATA_LM_TR_VAL_TE, 'val.csv'))
+    argparser.add_argument("-td", "--test_data_file", type=str, default=os.path.join(DATA_LM_TR_VAL_TE, 'test.csv'))
     argparser.add_argument("-oh", "--output_file_hier", type=str, default="data_lm_preds_hier.csv")
     argparser.add_argument("-of", "--output_file_flat", type=str, default="data_lm_preds_flat.csv")
     argparser.add_argument("-cfh", "--checkpoint_file_hier", type=str, default="checkpoint_hier.json")

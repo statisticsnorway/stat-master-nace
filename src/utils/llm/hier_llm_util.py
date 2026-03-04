@@ -4,34 +4,13 @@ import os
 from pathlib import Path
 from matplotlib.backends.backend_pdf import PdfPages
 import multiprocessing as mp
+import math
 
-from sklearn.model_selection import train_test_split
-from src.config import DATA_LM_TR_TE, DATA_LM_TR_VAL_TE, RANDOM_STATE, DATA
+from src.config import RANDOM_STATE, DATA
 
 seed = RANDOM_STATE
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-
-
-def splitting_dataset(df:pd.DataFrame, statify_column:str, train_file:str, test_file:str, seed:int, val_file:str = False)->pd.DataFrame:
-        
-    # train vs test
-    train, temp = train_test_split(df, test_size=0.4, random_state=seed, stratify=df[statify_column])
-    #### stratified cross validation instead of validation set
-    
-    if val_file==False:
-        test=temp
-        train.to_csv(f"{DATA_LM_TR_TE}train.csv", index=False)
-        test.to_csv(f"{DATA_LM_TR_TE}test.csv", index=False)
-    
-    else: 
-        # test vs validation
-        test, val = train_test_split(temp, test_size=0.5, random_state=seed, stratify=temp[statify_column])
-        val.to_csv(f"{DATA_LM_TR_VAL_TE}val.csv", index=False)
-        train.to_csv(f"{DATA_LM_TR_VAL_TE}train.csv", index=False)
-        test.to_csv(f"{DATA_LM_TR_VAL_TE}test.csv", index=False)
-    
-    return (train, val, test) if val_file else (train, test)
     
 
 def build_prompt(descriptions, next_level, meta, map_code_name):
@@ -47,7 +26,7 @@ def build_prompt(descriptions, next_level, meta, map_code_name):
         parent_str = f"\nOverordnet kategori: {map_code_name.get(parent, '')}" if parent else ""
         
         prompts[indx]=(
-        f"Bedriftsbeskrivelse:\n{descriptions[indx].strip()}\n\n"
+        f"Bedriftsbeskrivelse og navn:\n{descriptions[indx].strip()}\n\n"
         f"Oppgave:\nVelg den mest passende '{next_level}' klassen.{parent_str}\n\n"
         f"Mulige {next_level} klasser:\n"
         f"{options_str}\n\n"
@@ -114,33 +93,45 @@ def extract_class(output_text:str, current_level:str, parent:str, children:list[
         
     return 'UKJENT'
 
-
-
-def llm_call_fake(tokenizer, llm, sampling_params, prompts, hierarchy_code, current_level, meta):
+def compute_code_prob(nace_code, logprob_list):
     """
-    Fake LLM call that deterministically returns a valid option
-    for each prompt, keyed by the original batch index.
+    Returns probability of extracted code.
+    If code is 'UKJENT', returns 0.
     """
 
-    prompt_ids = list(prompts.keys())
-    prompt_texts = list(prompts.values())
+    if nace_code == "UKJENT":
+        return 0.0
 
-    results = {}
+    total_logprob = 0.0
+    reconstructed = ""
 
-    for idx, p in zip(prompt_ids, prompt_texts):
-        options = hierarchy_code[current_level]
+    for token_dict in logprob_list:
+        logprob_obj = list(token_dict.values())[0]
+        token = logprob_obj.decoded_token
 
-        # Pick first valid option for reproducibility
-        if isinstance(options, dict):
-            results[idx] = list(options.keys())[0]
-        else:
-            results[idx] = options[0]
+        # stop at special end token
+        if token == "<|im_end|>":
+            break
 
-    return results
+        reconstructed += token
+
+        # Only accumulate logprob if token is part of the code
+        if nace_code.startswith(reconstructed):
+            total_logprob += logprob_obj.logprob
+
+        # If reconstruction no longer matches code → stop
+        elif not nace_code.startswith(reconstructed):
+            break
+
+    # If we never fully reconstructed the code → probability 0
+    if reconstructed.strip() != nace_code:
+        return 0.0
+
+    return math.exp(total_logprob)
 
 
 
-def llm_call(tokenizer, llm, sampling_params, prompts, current_level, meta, map_code_name):
+def llm_call(tokenizer, llm, sampling_params, prompts, current_level, next_level, meta, map_code_name, level_probs={}):
     """
     texts: list of strings
     returns: list of (text, score)
@@ -164,27 +155,21 @@ def llm_call(tokenizer, llm, sampling_params, prompts, current_level, meta, map_
     outputs = llm.generate(prompts_tokenized, sampling_params)
 
     results = {}
-    results_probs = {}
     for idx, out in zip(prompt_ids, outputs):
         parent, children = meta[idx]
         raw = out.outputs[0].text
         print('raw ##########', raw)
-        probs = out.outputs[0].logprobs
+        logprobs = out.outputs[0].logprobs
         nace_code = extract_class(output_text=raw, 
                                   current_level=current_level, 
                                   children=children,
                                   parent=parent,
                                   map_code_names=map_code_name,
                                   )
+        prob=compute_code_prob(nace_code, logprob_list=logprobs)
         results[idx]=nace_code
-        results_probs[idx]=probs
-        #print('############### result logits \n', results_probs, flush=True) #----------------- legge til sannsynlighetene i run functionen
-    return results
-
-
-def sections_df_hier(df:pd.DataFrame):
-    sections = df[df['level']==1][['code','name']].astype(str).agg(" - ".join, axis=1).tolist()
-    return sections
+        level_probs[idx][next_level]=prob
+    return results, level_probs
 
 
 def derive_hier_names(df: pd.DataFrame, subclass_col:str, section_map, map_name):
@@ -414,7 +399,6 @@ def validate_and_assign(
     next_level
 ):
     for idx, pred in preds.items():
-
         if isinstance(pred, list):
             print('list pred', pred)
             pred = pred[0]
@@ -443,7 +427,6 @@ def validate_and_assign(
             raise ValueError(f"Invalid final_level: {final_level}")
 
         batch_results[idx][final_level] = final_code
-
     return batch_results
 
 
@@ -453,4 +436,4 @@ if __name__=='__main__':
     df = pd.read_csv(f"{DATA}data_prep_lm.csv", dtype={'company_activity':str,'company_name':str,'division':str, 'group':str, 'class':str, 'nace_21_code':str,'nace_21_description_nb':str}, keep_default_na=False, na_values=[]).fillna("")
     # Getting the train, val and test sets for the LM model
     #splitting_dataset(df=df, statify_column='nace_21_code', train_file='train', test_file='test', seed=seed, val_file=False)
-    splitting_dataset(df=df, statify_column='nace_21_code', train_file='train', test_file='test', seed=seed, val_file=True)
+    #splitting_dataset(df=df, statify_column='nace_21_code', train_file='train', test_file='test', seed=seed, val_file=True)

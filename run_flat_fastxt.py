@@ -28,7 +28,7 @@ seed_list=[1,2,3,4,RANDOM_STATE]
 thread=THREAD
 hier='nace_21_code'
 hier_level=5
-exp_name='hyptune_cv_company_activity_company_name'
+exp_name='hyptune_cv_company_activity_company_name_clean'
 
 # ===============================
 # Load data
@@ -45,7 +45,7 @@ dtype_map = {
 }
 
 train = pd.read_csv(
-    os.path.join(DATASETS, f"train.csv"),
+    os.path.join(DATA_FX_TR_VAL_TE, f"train.csv"),
     dtype=dtype_map,
     keep_default_na=False, na_values=[]
 ).fillna("").set_index('orgnr')
@@ -61,7 +61,7 @@ val = pd.read_csv(
 """
 
 test = pd.read_csv(
-    os.path.join(DATASETS, f"test.csv"),
+    os.path.join(DATA_FX_TR_VAL_TE, f"test.csv"),
     dtype=dtype_map,
     keep_default_na=False, na_values=[]
     ).fillna("").set_index('orgnr')
@@ -130,19 +130,19 @@ for seed_value in seed_list:
         #last seed analysis
         #--------------------
         res_sub_test, res_cl_test, res_gro_test, res_div_test, res_sec_test = metrics_levels(target=test_labels, pred=pred_labels_test)
-        with PdfPages(os.path.join(RES_FASTXT_FLAT,f"test_results_sub.pdf")) as pdf:
+        with PdfPages(os.path.join(RES_FASTXT_FLAT,f"test_results_sub_clean.pdf")) as pdf:
             pdf.savefig(df_to_table(res_sub_test, "Subclass Results"))
             pdf.savefig(df_to_table(res_cl_test, "Class Results"))
             pdf.savefig(df_to_table(res_gro_test, "Group Results"))
             pdf.savefig(df_to_table(res_div_test, "Division Results"))
             pdf.savefig(df_to_table(res_sec_test, "Section Results"))
 
-        df_results_test.to_csv(os.path.join(RES_FASTXT_FLAT,f"{hier}_metrics_test.csv"))
+        df_results_test.to_csv(os.path.join(RES_FASTXT_FLAT,f"{hier}_metrics_test_clean.csv"))
 
 
 # all preds saved to a file
 df_all_preds=pd.concat(all_preds)
-df_all_preds.to_parquet(os.path.join(RES_FASTXT_FLAT,"preds_flat_fasttext.parquet"))
+df_all_preds.to_parquet(os.path.join(RES_FASTXT_FLAT,"preds_flat_fasttext_clean.parquet"))
 
 
 
@@ -156,7 +156,7 @@ summary = pd.DataFrame({
     "HF1": mean_std(Hf1_list)
 }, index=["mean", "standard deviation"]).T
 
-summary.to_csv(os.path.join(RES_FASTXT_FLAT,f"mean_std.csv"))
+summary.to_csv(os.path.join(RES_FASTXT_FLAT,f"mean_std_clean.csv"))
 
 
 

@@ -43,7 +43,7 @@ dtype_map = {
 }
 
 train = pd.read_csv(
-    os.path.join(DATASETS, f"train.csv"),
+    os.path.join(DATA_FX_TR_VAL_TE, f"train.csv"),
     dtype=dtype_map,
     keep_default_na=False, na_values=[]
 ).fillna("").set_index('orgnr')
@@ -57,7 +57,7 @@ val = pd.read_csv(
 """
 
 test = pd.read_csv(
-    os.path.join(DATASETS, f"test.csv"),
+    os.path.join(DATA_FX_TR_VAL_TE, f"test.csv"),
     dtype=dtype_map,
     keep_default_na=False, na_values=[]
     ).fillna("").set_index('orgnr')
@@ -79,7 +79,7 @@ for hier, hier_level in zip(args.hierarchies, args.levels):
 
     # hyperparameter tuning with k-fold cv
     best_params = tune_fasttext_cv(df_train=train, input_cols=args.input_colm, output_cols=hier, seed=seed_value,thread=thread, n_trials=20)
-    with open(os.path.join(JSON_FILES,f'best_params_{hier}.json'), 'w') as f:
+    with open(os.path.join(JSON_FILES,f'best_params_{hier}_clean.json'), 'w') as f:
         json.dump(best_params, f, indent=4)
 
 
@@ -101,7 +101,7 @@ for hier, hier_level in zip(args.hierarchies, args.levels):
     
     #metrics
     df_results_test = metrics(test_labels_arr, pred_labels_test)
-    df_results_test.to_csv(os.path.join(RES_FASTXT_FLAT,f"{hier}_metrics_test.csv"))
+    df_results_test.to_csv(os.path.join(RES_FASTXT_FLAT,f"{hier}_metrics_test_clean.csv"))
 
 
 

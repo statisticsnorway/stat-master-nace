@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import torch
 import json
-from matplotlib.backends.backend_pdf import PdfPages
+import math
 from vllm import LLM, SamplingParams
 from src.parser import parse_args
 from src.config import HIERARCHY_DATA, RES_LM, JSON_FILES
@@ -41,7 +41,7 @@ BASE_COLUMNS = [
     'nace_21_description_nb'
 ]
 
-PRED_COLUMNS = ['pred_subclass']
+PRED_COLUMNS = ['pred_subclass', 'pred_level_probs', 'joint_prob', 'avg_prob']
 
 ALL_COLUMNS = BASE_COLUMNS + PRED_COLUMNS
 
@@ -90,6 +90,7 @@ def run_classify_nace(tokenizer,
         descriptions=batch[input].astype(str).agg(" ".join, axis=1).to_dict()
         # results per company
         batch_results = {idx: {} for idx in batch.index}
+        level_probs = {idx: {} for idx in batch.index}
 
         ############### all levels ###################
 
@@ -120,17 +121,21 @@ def run_classify_nace(tokenizer,
 
             if not prompts:
                 continue
-            print('meta \n ', meta)                    
-            preds = llm_call(
+            #print('meta \n ', meta)                    
+            preds, level_probs = llm_call(
                 tokenizer=tokenizer,
                 llm=llm,
                 sampling_params=sampling_params,
                 prompts=prompts,
                 current_level=current_level,
+                next_level=next_level,
                 meta=meta,
                 map_code_name=map_code_names,
+                level_probs=level_probs,
             )
             print('preds ', preds)
+            print('level_probs', level_probs)
+
 
             batch_results = validate_and_assign(
                 preds=preds,
@@ -142,14 +147,32 @@ def run_classify_nace(tokenizer,
             )
       
         print('batch results', batch_results)
+        print('level_probs', level_probs)
+
 
         if next_level == 'subclass':
             # Add predictions to batch DataFrame
-            for idx, res in batch_results.items():
-                batch.loc[idx, "pred_subclass"] = res.get("subclass", "")
-            print('batch \n', batch)
+            for idx in batch_results:
+                batch.loc[idx, "pred_subclass"] = batch_results[idx]["subclass"]
+                print('level_probs[idx] ', level_probs[idx])
+		probs = level_probs[idx].values()
+
+		if any(v is None or v <= 0 for v in probs):
+		    joint_logprob = None
+		else:
+		    joint_logprob = sum(math.log(v) for v in probs)
+		    avg_logprob = sum(log_probs) / len(log_probs)
+
+		#batch.loc[idx, 'subclass_prob'] = joint_logprob
+		batch.loc[idx, 'joint_prob'] = math.exp(joint_logprob)
+		batch.loc[idx, 'avg_prob'] = math.exp(avg_logprob)
+                #batch.loc[idx, 'subclass_probs'] =  sum(math.log(v) for v in level_probs[idx].values())
+                batch.loc[idx, 'pred_level_probs'] = json.dumps(level_probs[idx])
+
+            print('batch subclass \n', batch)
             batch = batch.reindex(columns=ALL_COLUMNS)
             assert list(batch.columns) == ALL_COLUMNS, f"Schema mismatch: {batch.columns}"
+
             # Write to CSV
             batch.to_csv(
                 output_file,
@@ -157,7 +180,7 @@ def run_classify_nace(tokenizer,
                 header=not os.path.exists(output_file),
                 index=True
             )
-            
+            start_row+=len(batch)
             # update checkpoint
             with open(checkpoint_file, "w") as f:
                 json.dump({"last_row": int(start_row)}, f)

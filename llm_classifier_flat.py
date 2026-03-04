@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 import json
 import torch
-from matplotlib.backends.backend_pdf import PdfPages
 from vllm import LLM, SamplingParams
 from src.parser import parse_args
 from src.config import HIERARCHY_DATA, RES_LM, JSON_FILES
@@ -37,7 +36,7 @@ BASE_COLUMNS = [
     'nace_21_description_nb'
 ]
 
-PRED_COLUMNS = ['pred_subclass']
+PRED_COLUMNS = ['pred_subclass', 'pred_probs']
 
 ALL_COLUMNS = BASE_COLUMNS + PRED_COLUMNS
 
@@ -90,7 +89,7 @@ def run_classify_nace(tokenizer,
             options=subclasses_name_code
         )
 
-        preds = llm_call(
+        preds, probs = llm_call(
             tokenizer=tokenizer,
             llm=llm, 
             sampling_params=sampling_params,
@@ -99,15 +98,20 @@ def run_classify_nace(tokenizer,
             map_code_names=map_code_names)
 
         print('########### preds\n',preds)
+        print('########### probs\n',probs)
+
 
         batch_results = validate_and_assign(
             preds,
+            probs,
             batch_results,
         )
-    
+        print('batch results\n',batch_results)
         # Add predictions to batch DataFrame
         for idx, res in batch_results.items():
             batch.loc[idx, 'pred_subclass'] = res.get('subclass', '')
+            batch.loc[idx, 'pred_probs'] = res.get('subclass_probs', '')
+            
 
         batch = batch.reindex(columns=ALL_COLUMNS)
         assert list(batch.columns) == ALL_COLUMNS, f"Schema mismatch: {batch.columns}"
@@ -120,10 +124,10 @@ def run_classify_nace(tokenizer,
             index=True
         )
 
-        
+        start_row+=len(batch)
         # update checkpoint
         with open(checkpoint_file, "w") as f:
-            json.dump({"last_row": int(batch.index.max())}, f)
+            json.dump({"last_row": int(start_row)}, f)
     return 'Classification is finished'
 
 if __name__ == "__main__":    
@@ -151,6 +155,7 @@ if __name__ == "__main__":
         subclasses_name_code=subclasses_name_code,
         subclasses_code=subclasses_code,
         map_code_names=map_code_names,
+        sampling_params=sampling_params,
         )
     print(message)
     

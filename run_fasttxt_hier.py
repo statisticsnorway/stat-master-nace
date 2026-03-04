@@ -13,7 +13,7 @@ from src.metrics import metrics, metrics_levels
 
 seed_list=[1,2,3,4,RANDOM_STATE]
 thread=THREAD
-exp_name='hyptune_cv_company_activity_company_name'
+exp_name='hyptune_cv_company_activity_company_name_clean'
 hierarchies = ["root", "section", "division", "group", "class", "nace_21_code"]
 input_col = ["company_activity", "company_name"]
 
@@ -33,7 +33,7 @@ dtype_map = {
 }
 
 train = pd.read_csv(
-    os.path.join(DATASETS, f"train.csv"),
+    os.path.join(DATA_FX_TR_VAL_TE, f"train.csv"),
     dtype=dtype_map,
     keep_default_na=False, na_values=[]
 ).fillna("").set_index('orgnr')
@@ -49,7 +49,7 @@ val = pd.read_csv(
 """
 
 test = pd.read_csv(
-    os.path.join(DATASETS, f"test.csv"),
+    os.path.join(DATA_FX_TR_VAL_TE, f"test.csv"),
     dtype=dtype_map,
     keep_default_na=False, na_values=[]
     ).fillna("").set_index('orgnr')
@@ -65,8 +65,8 @@ all_preds=[]
 
 test_input_txt, test_labels=pred_prep(test, input_cols=input_col, output_cols="nace_21_code")
 print('test labels', test_labels)
-if os.path.exists(os.path.join(JSON_FILES,'best_paramssection.json')):
-    with open(os.path.join(JSON_FILES,'best_paramssection.json'), "r") as f:
+if os.path.exists(os.path.join(JSON_FILES,'best_params_division_clean.json')):
+    with open(os.path.join(JSON_FILES,'best_params_division_clean.json'), "r") as f:
         best_params = json.load(f)
 else:
     print("Load parameters on run_hier_explore.py script")
@@ -121,7 +121,7 @@ for seed_value in seed_list:
 
     if seed_value == RANDOM_STATE:
         res_sub_test, res_cl_test, res_gro_test, res_div_test, res_sec_test = metrics_levels(target=test_labels, pred=pred_labels_test)
-        with PdfPages(os.path.join(RES_HIER_FASTXT,f"test_hier_results.pdf")) as pdf:
+        with PdfPages(os.path.join(RES_HIER_FASTXT,f"test_hier_results_clean_division.pdf")) as pdf:
             pdf.savefig(df_to_table(res_sub_test, "Subclass Results"))
             pdf.savefig(df_to_table(res_cl_test, "Class Results"))
             pdf.savefig(df_to_table(res_gro_test, "Group Results"))
@@ -139,12 +139,12 @@ os.makedirs(RES_HIER_FASTXT, exist_ok=True)
 
 try:
     # Try saving as Parquet
-    df_all_preds.to_parquet(os.path.join(RES_HIER_FASTXT, "preds_hier_fasttext.parquet"))
+    df_all_preds.to_parquet(os.path.join(RES_HIER_FASTXT, "preds_hier_fasttext_clean_division.parquet"))
     print("Saved predictions as Parquet")
 except Exception as e:
     print(f"Parquet save failed: {e}")
     # Fall back to CSV
-    df_all_preds.to_csv(os.path.join(RES_HIER_FASTXT, "preds_hier_fasttext.csv"), index=True)
+    df_all_preds.to_csv(os.path.join(RES_HIER_FASTXT, "preds_hier_fasttext_clean_division.csv"), index=True)
     print("Saved predictions as CSV instead")
 
 
@@ -158,7 +158,7 @@ summary = pd.DataFrame({
     "HF1": mean_std(Hf1_list)
 }, index=["mean", "standard deviation"]).T
 
-summary.to_csv(os.path.join(RES_HIER_FASTXT,f"mean_std.csv"))
+summary.to_csv(os.path.join(RES_HIER_FASTXT,f"mean_std_clean_division.csv"))
 
 
     

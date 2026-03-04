@@ -15,7 +15,9 @@ import sklearn.metrics as m
 def train_hier_fasttext(df, input_col, label_hiers, best_params, seed, thread=1, save_dir=M_F_H):
     models_paths={}
     models_non_path={}
-    temp_dir = os.path.expanduser(os.path.join(DATA_FASTXT,"temp_fastxt"))
+    temp_dir = os.path.expanduser(os.path.join(DATA_FASTXT,"temp_fastxt")) # where the aggregated datasets are saved
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
     
     # deeper levels
     for i in range(1, len(label_hiers)):

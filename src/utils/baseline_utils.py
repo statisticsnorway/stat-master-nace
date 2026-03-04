@@ -29,6 +29,8 @@ def pred_prep(df:pd.DataFrame, input_cols:list[str], output_cols:str)->list[str]
         #df = df.copy()
         #df["tekst og navn"] = input_txt
     else: 
+        if isinstance(input_cols, list):
+            input_cols=input_cols[0]
         input_txt = df[input_cols].astype(str).tolist()
     return input_txt, labels
 
