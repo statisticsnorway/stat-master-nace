@@ -23,17 +23,16 @@ def build_prompt(descriptions, next_level, meta, map_code_name):
         parent, options = meta[indx]
 
         options_str = "\n".join(f"- {map_code_name.get(opt, '')}" for opt in options)
-        parent_str = f"\nOverordnet kategori: {map_code_name.get(parent, '')}" if parent else ""
+        parent_str = f"\n, basert på overordnet kategori: {map_code_name.get(parent, '')}" if parent else "."
         
         prompts[indx]=(
-        f"Bedriftsbeskrivelse og navn:\n{descriptions[indx].strip()}\n\n"
-        f"Oppgave:\nVelg den mest passende '{next_level}' klassen.{parent_str}\n\n"
+        f"Informasjon om bedriften:\n{descriptions[indx].strip()}\n\n"
+        f"Oppgave:\nVelg den mest passende '{next_level}'-klassen som best beskriver bedriftens hovedaktivitet{parent_str}\n\n"
         f"Mulige {next_level} klasser:\n"
         f"{options_str}\n\n"
         "Regler:\n"
-        "- Du må velge nøyaktig ÉN kode fra listen over og velg KUN koden.\n"
-        #"- Hvis teksten ikke inneholder tilstrekkelig informasjon til å avgjøre riktig klasse, svar: UKJENT.\n"
-        "- Svaret skal kun bestå av selve koden \n"# eller ordet UKJENT med blokkbokstaver.\n"
+        "- Velg nøyaktig ÉN kode fra listen over og returner KUN koden.\n"
+        "- Hvis ingen kategori passer godt, velg den som er nærmest.\n"
         "- Ikke inkluder navn, forklaring, punktum eller andre tegn.\n\n"
 
         "Svar:")

@@ -16,19 +16,20 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 def build_prompt(descriptions, options):
     prompts={}
     options_str = "\n".join(f"- {opt}" for opt in options)
-    
+
     for indx in descriptions:
-        prompts[indx]=(
-        f"Bedriftsbeskrivelse og navn:\n{descriptions[indx].strip()}\n\n"
-        "Oppgave:\nVelg den NACE-underklassen som passer best.\n\n"
-        "Gyldige NACE-klasser:\n"
-        f"{options_str}\n\n"    
-        "Regler:\n"
-        "- Du må velge nøyaktig ÉN kode fra listen over og velg KUN koden (for eksempel: 01.110).\n"
-        #"- Hvis teksten ikke inneholder tilstrekkelig informasjon til å avgjøre riktig klasse, svar: UKJENT.\n"
-        "- Svaret skal kun bestå av selve koden \n" # eller ordet UKJENT med blokkbokstaver.\n"
-        "- Ikke inkluder navn, forklaring, punktum eller andre tegn.\n\n"
-        "Svar:")
+        prompts[indx] = (
+            "Informasjon om bedriften:\n"
+            f"{descriptions[indx].strip()}\n\n"
+            f"Oppgave:\n"
+            "Velg den NACE-underklassen som best beskriver bedriftens hovedaktivitet.\n\n"
+            f"Gyldige NACE-klasser:\n{options_str}\n\n"
+            "Regler:\n"
+            "- Velg nøyaktig ÉN kode fra listen over og returner KUN koden (f.eks. 01.110).\n"
+            "- Hvis ingen kategori passer godt, velg den som er nærmest.\n"
+            "- Ikke inkluder forklaring, navn, punktum eller andre tegn.\n\n"
+            "Svar:"
+        )
     return prompts
 
 

@@ -10,6 +10,15 @@ from src.config import HIERARCHY_DATA
 df_hier=pd.read_csv(HIERARCHY_DATA, dtype={'code':str}, sep=";", encoding="latin1")
 map_sec = dict(zip(df_hier[df_hier['level']==2]["code"], df_hier[df_hier['level']==2]["parentCode"]))
 
+def label_slice(s, n_front=None, n_back=None):
+    if s == "UKJENT":
+        return "UKJENT"
+    if n_front is not None:
+        return s[:n_front]
+    if n_back is not None:
+        return s[:-n_back]
+    return s
+
 def get_ancestors(node, map_sec):
     # Returns a set of the node and all its ancestors
     ancestors = set()
@@ -21,9 +30,11 @@ def get_ancestors(node, map_sec):
         cl = parts[0] + '.' + parts[1][:-1]
         grp = parts[0] + '.' + parts[1][:-2]
         div = parts[0]
-        sec = map_sec[div]
+        sec = map_sec.get(div, 'UKJENT')
     else:
-        ValueError('Not a valid code')
+        cl=grp=div=sec='UKJENT'
+
+
     return {node, cl, grp, div, sec}
 
 def hierarchical_f1(y_true, y_pred, map_sec=map_sec):
@@ -98,17 +109,17 @@ def metrics_levels(target:list[str], pred:list[str], map_sec=map_sec):
     target, pred = np.array(target), np.array(pred)
     print('target: ', target, '\n pred: ',pred)
 
-    cl_t = np.array([s[:-1] for s in target])
-    cl_p = np.array([s[:-1] for s in pred])
-    
-    gro_t = np.array([s[:-2] for s in target])
-    gro_p = np.array([s[:-2] for s in pred])
-    
-    div_t = np.array([s[:2] for s in target])
-    div_p = np.array([s[:2] for s in pred])
+    cl_t = np.array([label_slice(s, n_back=1) for s in target])
+    cl_p = np.array([label_slice(s, n_back=1) for s in pred])
 
-    sec_t = np.array([map_sec[t] for t in div_t])
-    sec_p = np.array([map_sec[p] for p in div_p])
+    gro_t = np.array([label_slice(s, n_back=2) for s in target])
+    gro_p = np.array([label_slice(s, n_back=2) for s in pred])
+
+    div_t = np.array([label_slice(s, n_front=2) for s in target])
+    div_p = np.array([label_slice(s, n_front=2) for s in pred])
+
+    sec_t = np.array([map_sec.get(t, 'UKJENT') for t in div_t])
+    sec_p = np.array([map_sec.get(p, 'UKJENT') for p in div_p])
     
     res_sub=metrics(target, pred)
     res_cl=metrics(cl_t, cl_p)

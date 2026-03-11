@@ -51,7 +51,7 @@ def run_classify_nace(tokenizer,
         hierarchy,
         map_code_names,
         sampling_params, 
-        input_file:str=os.path.join(RES_LM, args.test_data_file), 
+        input_file:str=args.test_data_file, 
         input:str|list[str] = ["company_activity", "company_name"],
         output_file:str=os.path.join(RES_LM, args.output_file_hier),
         levels=["root", "section", "division", "group", "class", "subclass"],
@@ -146,44 +146,50 @@ def run_classify_nace(tokenizer,
                 next_level=next_level,
             )
       
-        print('batch results', batch_results)
-        print('level_probs', level_probs)
+        #print('batch results', batch_results)
+        #print('level_probs', level_probs)
 
+        for idx in batch_results:
 
-        if next_level == 'subclass':
-            # Add predictions to batch DataFrame
-            for idx in batch_results:
+            # Assign subclass if it exists
+            if "subclass" in batch_results[idx]:
                 batch.loc[idx, "pred_subclass"] = batch_results[idx]["subclass"]
-                print('level_probs[idx] ', level_probs[idx])
-		probs = level_probs[idx].values()
 
-		if any(v is None or v <= 0 for v in probs):
-		    joint_logprob = None
-		else:
-		    joint_logprob = sum(math.log(v) for v in probs)
-		    avg_logprob = sum(log_probs) / len(log_probs)
+            probs = level_probs[idx].values()
 
-		#batch.loc[idx, 'subclass_prob'] = joint_logprob
-		batch.loc[idx, 'joint_prob'] = math.exp(joint_logprob)
-		batch.loc[idx, 'avg_prob'] = math.exp(avg_logprob)
-                #batch.loc[idx, 'subclass_probs'] =  sum(math.log(v) for v in level_probs[idx].values())
-                batch.loc[idx, 'pred_level_probs'] = json.dumps(level_probs[idx])
+            if not probs or any(v is None or v <= 0 for v in probs):
+                joint_logprob = None
+                avg_logprob = None
+            else:
+                log_probs = [math.log(v) for v in probs]
+                joint_logprob = sum(log_probs)
+                avg_logprob = joint_logprob / len(log_probs)
 
-            print('batch subclass \n', batch)
-            batch = batch.reindex(columns=ALL_COLUMNS)
-            assert list(batch.columns) == ALL_COLUMNS, f"Schema mismatch: {batch.columns}"
-
-            # Write to CSV
-            batch.to_csv(
-                output_file,
-                mode='a',
-                header=not os.path.exists(output_file),
-                index=True
+            batch.loc[idx, 'joint_prob'] = (
+                math.exp(joint_logprob) if joint_logprob is not None else None
             )
-            start_row+=len(batch)
-            # update checkpoint
-            with open(checkpoint_file, "w") as f:
-                json.dump({"last_row": int(start_row)}, f)
+
+            batch.loc[idx, 'avg_prob'] = (
+                math.exp(avg_logprob) if avg_logprob is not None else None
+            )
+
+            batch.loc[idx, 'pred_level_probs'] = json.dumps(level_probs[idx])      
+        
+        batch = batch.reindex(columns=ALL_COLUMNS)
+        print('batch subclass \n', batch)
+        assert list(batch.columns) == ALL_COLUMNS, f"Schema mismatch: {batch.columns}"
+
+        # Write to CSV
+        batch.to_csv(
+            output_file,
+            mode='a',
+            header=not os.path.exists(output_file),
+            index=True
+        )
+        start_row+=len(batch)
+        # update checkpoint
+        with open(checkpoint_file, "w") as f:
+            json.dump({"last_row": int(start_row)}, f)
     return None
 
         
