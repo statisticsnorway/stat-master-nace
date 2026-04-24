@@ -7,8 +7,6 @@ import os
 from pathlib import Path
 import json
 import torch
-import math
-import time
 from vllm import LLM, SamplingParams
 from src.parser import parse_args
 from src.config import HIERARCHY_DATA, RES_LM, JSON_FILES
@@ -31,7 +29,6 @@ df_hier = pd.read_csv(HIERARCHY_DATA, dtype={'code':str}, sep=";", encoding="lat
 BASE_COLUMNS = [
     'company_activity',
     'company_name',
-    'company_purpose',
     'division',
     'group',
     'class',
@@ -49,19 +46,17 @@ def run_classify_nace(tokenizer,
         subclasses_code,
         map_code_names,
         sampling_params, 
-        input_file:str= args.test_data_file, 
-        input:str|list[str] = ["company_activity", "company_name", "company_purpose"],
+        input_file:str=args.val_data_file, 
+        input:str|list[str] = args.input_colm,
         batch_size=args.batch_size, 
         output_file:str=os.path.join(RES_LM, args.output_file_flat),
         checkpoint_file=os.path.join(JSON_FILES ,args.checkpoint_file_flat) #"results/checkpoint_flat.json",
         ):
     start_row = 0
-    total_elapsed_time = 0
     if os.path.exists(checkpoint_file):
         with open(checkpoint_file, 'r') as f:
             checkpoint = json.load(f)
-            start_row = checkpoint.get('last_row', 0)
-            total_elapsed_time = checkpoint.get('total_elapsed_time', 0.0)
+            start_row = checkpoint.get('last_row')
 
     
     for batch in pd.read_csv(input_file, 
@@ -84,8 +79,6 @@ def run_classify_nace(tokenizer,
     
         batch = batch.fillna("")
         descriptions=batch[input].astype(str).agg(" ".join, axis=1).to_dict()
-        torch.cuda.synchronize()
-        batch_start = time.time()
 
         # results per company
         batch_results = {idx: {} for idx in batch.index}
@@ -95,8 +88,6 @@ def run_classify_nace(tokenizer,
             descriptions=descriptions,
             options=subclasses_name_code
         )
-        #tokens = tokenizer(prompts[913482778], return_tensors="pt")
-        #print("Number of tokens:", tokens.input_ids.shape[1])
 
         preds, probs = llm_call(
             tokenizer=tokenizer,
@@ -107,7 +98,7 @@ def run_classify_nace(tokenizer,
             map_code_names=map_code_names)
 
         print('########### preds\n',preds)
-        #print('########### probs\n',probs)
+        print('########### probs\n',probs)
 
 
         batch_results = validate_and_assign(
@@ -115,12 +106,6 @@ def run_classify_nace(tokenizer,
             probs,
             batch_results,
         )
-
-        # Ensure all GPUs finished before stopping timer
-        torch.cuda.synchronize()
-        batch_time = time.time() - batch_start
-        total_elapsed_time += batch_time
-
         print('batch results\n',batch_results)
         # Add predictions to batch DataFrame
         for idx, res in batch_results.items():
@@ -142,9 +127,7 @@ def run_classify_nace(tokenizer,
         start_row+=len(batch)
         # update checkpoint
         with open(checkpoint_file, "w") as f:
-            json.dump({"last_row": int(start_row),
-                "total_elapsed_time": total_elapsed_time
-            }, f)
+            json.dump({"last_row": int(start_row)}, f)
     return 'Classification is finished'
 
 if __name__ == "__main__":    
@@ -157,10 +140,7 @@ if __name__ == "__main__":
         logprobs=1
     )
     model = LLM(args.model_name,
-                tensor_parallel_size=num_visible,
-                )
-                #max_model_len = 20000,
-                #gpu_memory_utilization=0.9) # bigger models may require more GPUs and higher tensor parallel size
+                tensor_parallel_size=num_visible) # bigger models may require more GPUs and higher tensor parallel size
 
     tokenizer = model.get_tokenizer()
    

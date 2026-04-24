@@ -6,9 +6,9 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --mem=32G
-#SBATCH --gres=gpu:a40:1
+#SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
-#SBATCH --exclude=gpu-14,gpu-5,gpu-11,gpu-7,gpu-17
+#SBATCH --exclude=gpu-14,gpu-5,gpu-11,gpu-7
 
 # NB: this script should be run with "sbatch run_classifier_flat.slurm"!
 # See https://www.uio.no/english/services/it/research/platforms/edu-research/help/fox/jobs/submitting.md
@@ -52,4 +52,4 @@ export LC_ALL=en_US.UTF-8
 
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
 
-srun --label python3 llm_classifier_flat.py $@
+srun --label python3 llm_classifier_flat_config.py $@

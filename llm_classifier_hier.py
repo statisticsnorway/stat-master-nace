@@ -7,6 +7,7 @@ from pathlib import Path
 import torch
 import json
 import math
+import time
 from vllm import LLM, SamplingParams
 from src.parser import parse_args
 from src.config import HIERARCHY_DATA, RES_LM, JSON_FILES
@@ -52,24 +53,28 @@ def run_classify_nace(tokenizer,
         map_code_names,
         sampling_params, 
         input_file:str=args.test_data_file, 
-        input:str|list[str] = ["company_activity", "company_name"],
+        input:str|list[str] = ["company_activity", "company_name", "company_purpose"],
         output_file:str=os.path.join(RES_LM, args.output_file_hier),
         levels=["root", "section", "division", "group", "class", "subclass"],
         checkpoint_file=os.path.join(JSON_FILES, args.checkpoint_file_hier),
         ):
     """current level is the level that presents possible classes at that level that can be classified. 
         next_level is the level that is being classified"""
+    # Ensure all GPUs finish work before starting timer
     start_row=0
+    total_elapsed_time=0
     if os.path.exists(checkpoint_file):
         with open(checkpoint_file, "r") as f:
             checkpoint = json.load(f)
-            start_row=checkpoint.get('last_row')
+            start_row=checkpoint.get('last_row', 0)
+            total_elapsed_time = checkpoint.get('total_elapsed_time', 0.0)
 
     map_hier_indx = {level: i for i, level in enumerate(levels)}
     reader = pd.read_csv(input_file, 
                              dtype={
                                  'company_activity':str,
                                  'company_name':str,
+                                 'company_purpose':str,
                                  'division':str, 
                                  'group':str, 
                                  'class':str, 
@@ -93,6 +98,8 @@ def run_classify_nace(tokenizer,
         level_probs = {idx: {} for idx in batch.index}
 
         ############### all levels ###################
+        torch.cuda.synchronize()
+        batch_start = time.time()
 
         for i_level in range(len(levels) - 1):
             current_level = levels[i_level]
@@ -145,6 +152,10 @@ def run_classify_nace(tokenizer,
                 current_level=current_level,
                 next_level=next_level,
             )
+        # Ensure all GPUs finished before stopping timer
+        torch.cuda.synchronize()
+        batch_time = time.time() - batch_start
+        total_elapsed_time += batch_time
       
         #print('batch results', batch_results)
         #print('level_probs', level_probs)
@@ -187,16 +198,20 @@ def run_classify_nace(tokenizer,
             index=True
         )
         start_row+=len(batch)
+        
         # update checkpoint
         with open(checkpoint_file, "w") as f:
-            json.dump({"last_row": int(start_row)}, f)
+            json.dump({
+                "last_row": int(start_row),
+                "total_elapsed_time": total_elapsed_time
+            }, f)
     return None
 
         
         
 if __name__ == "__main__":
     num_visible = torch.cuda.device_count()
-    
+    start_time = time.time()
 
     llm_fake=False
     if llm_fake:

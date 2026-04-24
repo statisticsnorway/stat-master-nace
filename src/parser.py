@@ -19,12 +19,13 @@ def parse_args():
                                                                                    "Qwen/Qwen2.5-3B-Instruct",
                                                                                    "Qwen/Qwen2.5-7B-Instruct",
                                                                                    "Qwen/Qwen2.5-14B-Instruct",
-                                                                                   "Qwen/Qwen2.5-32B-Instruct",                                                                                   
+                                                                                   "Qwen/Qwen2.5-32B-Instruct",
+                                                                                   "Qwen/Qwen3-32B-FP8",                                                                                   
                                                                                    ])
     argparser.add_argument("--input_colm", type=str, nargs="+", default=['company_activity','company_name','company_purpose'],
                     help="Specify which input columns to train on.")    
     #argparser.add_argument("-gpu", "--num_gpus", type=int, default=1)
-    argparser.add_argument("-bs", "--batch_size", type=int, default=64) #batch size 32   
+    argparser.add_argument("-bs", "--batch_size", type=int, default=64)   
     argparser.add_argument("--debug", action="store_true")
     return argparser.parse_args()
     

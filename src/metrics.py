@@ -19,12 +19,9 @@ def label_slice(s, n_front=None, n_back=None):
         return s[:-n_back]
     return s
 
+
 def get_ancestors(node, map_sec):
     # Returns a set of the node and all its ancestors
-    ancestors = set()
-
-    ancestors.add(node)
-
     parts = node.split('.')
     if len(parts) == 2:
         cl = parts[0] + '.' + parts[1][:-1]
@@ -33,30 +30,41 @@ def get_ancestors(node, map_sec):
         sec = map_sec.get(div, 'UKJENT')
     else:
         cl=grp=div=sec='UKJENT'
+    return set((node, cl, grp, div, sec))
 
+def hierarchical_f1_micro(nace_21_code, preds, map_sec=map_sec):
+    common_len_lst=[]
+    pred_set_len_lst=[]
+    true_set_len_lst=[]
 
-    return {node, cl, grp, div, sec}
-
-def hierarchical_f1(y_true, y_pred, map_sec=map_sec):
-    # y_true, y_pred are lists of labels
-    # hierarchy is a dict: {child: parent}
-    
-    true_set = set()
-    pred_set = set()
-    
-    for t,p in zip(y_true,y_pred):
-        true_set.update(get_ancestors(t,map_sec))
-        pred_set.update(get_ancestors(p,map_sec))
+    for true, pred in zip(nace_21_code, preds):
         
-    tp = len(true_set.intersection(pred_set))
-    fp = len(pred_set - true_set)
-    fn = len(true_set - pred_set)
+        #print('target: ', true)
+        #print('pred: ', pred)
+        true_set=get_ancestors(true,map_sec)
+        pred_set=get_ancestors(pred,map_sec)
+        #print('true_set: ',true_set)
+        #print('pred_set: ', pred_set)
+            
+        common_len = len(true_set.intersection(pred_set))
+        common_len_lst.append(common_len)
+        pred_set_len = len(pred_set)
+        pred_set_len_lst.append(pred_set_len)
+        true_set_len = len(true_set)
+        true_set_len_lst.append(true_set_len)
     
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-    
-    f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
-    return f1
+    common_len_lst=np.array(common_len_lst)
+    pred_set_len_lst=np.array(pred_set_len_lst)
+    true_set_len_lst=np.array(true_set_len_lst)
+
+    common_sum=np.sum(common_len_lst)
+    pred_sum=np.sum(pred_set_len_lst)
+    true_sum=np.sum(true_set_len_lst)
+
+    hP = common_sum/pred_sum
+    hR = common_sum/true_sum
+    HF1 = (2*hP*hR)/(hP+hR)
+    return HF1
 
 
 def brier_multi(targets, probs):    
@@ -88,15 +96,14 @@ def metrics(target, pred):
             #"precision": m.precision_score(target, pred, zero_division=np.nan, average=avg),
         }
     results['score'] = {'brier_score':brier_multi(target, pred)}
-    print(target)
-    print(len(target[0]))
     if len(target[0]) == 6:
-        results['score']['HF1'] = hierarchical_f1(target,pred)
+        results['score']['Micro HF1'] = hierarchical_f1_micro(target,pred)
     
     # Converts to DataFrame
     df_results = pd.DataFrame(results).T  # .T transposes so metrics are rows
     df_results.index.name = "average"
     return df_results
+
 
 
 def metrics_levels(target:list[str], pred:list[str], map_sec=map_sec):

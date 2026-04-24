@@ -17,7 +17,7 @@ from src.utils.utils import seed_everything
 # --- argument parser ---
 parser = argparse.ArgumentParser(description="Run FastText flat model")
 parser.add_argument("--stage", type=str, choices=["features", "hyptune"], required=True,
-                    help="Choose stage: 'test' for trying different columns, 'hyptune' for hyperparameter tuning.")
+                    help="Choose stage: 'features' for trying different columns, 'hyptune' for hyperparameter tuning.")
 parser.add_argument("--mode", type=str, choices=["autotune", "cv"],# default=None,
                     help="Choose tuning method for hyptune stage: 'autotune' or 'cv'.")
 parser.add_argument("--input_colm", type=str, nargs="+", default=['company_activity','company_name','company_purpose'],
@@ -65,7 +65,7 @@ results_dir = os.path.join(RES_FASTXT_FLAT, "flat_fastxt_preps")
 os.makedirs(results_dir, exist_ok=True)
 
 metrics_test_path = os.path.join(results_dir, f"metrics_test_{exp_name}.csv")
-metrics_val_path  = os.path.join(results_dir, f"metrics_val_{exp_name}.csv")
+metrics_val_path  = os.path.join(results_dir, os.path.join('clean', f'metrics_val_{exp_name}.csv'))
 
 
 

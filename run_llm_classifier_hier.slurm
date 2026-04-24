@@ -1,14 +1,14 @@
 #!/bin/bash
 #SBATCH --job-name=nace_classifier_hier
 #SBATCH --account=ec403
-#SBATCH --time 02:30:00
+#SBATCH --time 20:30:00
 #SBATCH --partition=accel    # To use the accelerator nodes
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --mem=32G
-#SBATCH --gres=gpu:1
+#SBATCH --mem=64G
+#SBATCH --gres=gpu:a100_80:1
 #SBATCH --cpus-per-task=4
-#SBATCH --exclude=gpu-14,gpu-5,gpu-11,gpu-7
+#SBATCH --exclude=gpu-14,gpu-5,gpu-11,gpu-7,gpu-17
 
 # NB: this script should be run with "sbatch run_classifier_hier.slurm"!
 # See https://www.uio.no/english/services/it/research/platforms/edu-research/help/fox/jobs/submitting.md
