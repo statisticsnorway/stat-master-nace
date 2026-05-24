@@ -27,8 +27,8 @@ def build_prompt(descriptions, next_level, meta, map_code_name):
         
         prompts[indx]=(
         f"Informasjon om bedriften:\n{descriptions[indx].strip()}\n\n"
-        f"Oppgave:\nVelg den mest passende '{next_level}'-klassen som best beskriver bedriftens hovedaktivitet{parent_str}\n\n"
-        f"Mulige {next_level} klasser:\n"
+        f"Oppgave:\nVelg den mest passende '{next_level}'-kategorien i NACE klassifisering systemet som best beskriver bedriftens hovedaktivitet{parent_str}\n\n"
+        f"Mulige {next_level} kategorier:\n"
         f"{options_str}\n\n"
         "Regler:\n"
         "- Velg nøyaktig ÉN kode fra listen over og returner KUN koden.\n"
