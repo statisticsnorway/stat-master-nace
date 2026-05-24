@@ -23,7 +23,7 @@ def build_prompt(descriptions, options):
             f"{descriptions[indx].strip()}\n\n"
             f"Oppgave:\n"
             "Velg den NACE-underklassen som best beskriver bedriftens hovedaktivitet.\n\n"
-            f"Gyldige NACE-klasser:\n{options_str}\n\n"
+            f"Gyldige NACE-kategorien:\n{options_str}\n\n"
             "Regler:\n"
             "- Velg nøyaktig ÉN kode fra listen over og returner KUN koden (f.eks. 01.110).\n"
             "- Hvis ingen kategori passer godt, velg den som er nærmest.\n"
