@@ -142,7 +142,7 @@ def llm_call(tokenizer, llm, sampling_params, prompts, current_level, next_level
         [
             [
             {"role": "system", 
-            "content": "Du er en ekspert på SN2025-klassifisering."},
+            "content": "Du er en ekspert på NACE-klassifisering."},
             {"role": "user", "content": p}
             ] for p in prompt_texts
         ],
