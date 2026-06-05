@@ -39,7 +39,7 @@ export TRITON_CACHE_DIR=$CACHE_ROOT/triton_cache
 export HF_HOME=$CACHE_ROOT/hf_cache
 export VLLM_CACHE_ROOT=$CACHE_ROOT/vllm_cache
 
-export HF_TOKEN="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" 
+export HF_TOKEN=...
 
 export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
 export MASTER_PORT=9999
