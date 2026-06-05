@@ -1,6 +1,6 @@
 # stat-master-nace
 
-This code is created by Minauio <minash19@yahoo.com>, and is a part of a Master’s thesis submitted to the University of Oslo, conducted in collaboration with Statistics Norway (SSB). The task is to compare the automation of Norwegian NACE classification using hierarchical and flat prediction methods with FastText and large language models. This repository contains the code used for the experiments reported in the master's thesis. The repository is intended to facilitate reproducibility of the reported results.
+This code is created by Minauio <minash19@yahoo.com>, and is a part of a Master’s thesis submitted to the University of Oslo, conducted in collaboration with Statistics Norway (SSB). The task is to compare the automation of Norwegian NACE classification (SIC) using hierarchical and flat prediction methods with FastText and large language models. This repository contains the code used for the experiments reported in the master's thesis. The repository is intended to facilitate reproducibility of the reported results.
 
 ## Supervised Models
 
